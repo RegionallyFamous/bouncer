@@ -1,7 +1,5 @@
 # Bouncer
 
-[![CI](https://github.com/nick/bouncer/actions/workflows/ci.yml/badge.svg)](https://github.com/nick/bouncer/actions/workflows/ci.yml)
-
 > **Your plugins can do anything. Bouncer makes sure they don't.**
 
 You probably don't think twice when you install a WordPress plugin, and you shouldn't have to. Here's what actually happens when you click **Activate**:
