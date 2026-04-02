@@ -1,0 +1,66 @@
+Bouncer — release checklist
+============================
+
+Plugin Check (PCP) and PHPCS
+----------------------------
+Before each WordPress.org submission or update, run the **Plugin Check** plugin (PCP) in wp-admin against Bouncer. PCP runs automated security scans on submissions as of October 2025.
+
+Locally, install dev dependencies and run PHPCS (WPCS):
+
+  cd /path/to/bouncer
+  composer install
+  composer run phpcs
+
+Fix reported issues; align with WordPress Coding Standards 3.x. Exclude `vendor/` from distribution zips (see below).
+
+Version source of truth
+-----------------------
+* Plugin header and BOUNCER_VERSION in bouncer.php
+* Stable tag in readme.txt (must match for WordPress.org)
+
+Build distributable zip
+-----------------------
+The archive must contain a top-level **bouncer/** folder (not loose files at zip root), so WordPress installs to `wp-content/plugins/bouncer/`.
+
+Option A — WP-CLI (install package once):
+
+  wp package install wp-cli/dist-archive-command
+  wp dist-archive /path/to/bouncer
+
+Option B — zip from the parent of the plugin folder (recommended):
+
+  cd /path/to/parent-of-bouncer
+  zip -r bouncer-1.0.0.zip bouncer \
+    -x "bouncer/.git/*" \
+    -x "bouncer/.github/*" \
+    -x "bouncer/.gitignore" \
+    -x "bouncer/.distignore" \
+    -x "bouncer/.dev/*" \
+    -x "bouncer/.vscode/*" \
+    -x "bouncer/.cursor/*" \
+    -x "bouncer/.idea/*" \
+    -x "bouncer/*.log" \
+    -x "bouncer/plugin-check-output.log" \
+    -x "bouncer/dev-environment/*" \
+    -x "bouncer/node_modules/*" \
+    -x "bouncer/vendor/*" \
+    -x "bouncer/composer.lock" \
+    -x "bouncer/package.json" \
+    -x "bouncer/package-lock.json" \
+    -x "bouncer/*.md" \
+    -x "bouncer/phpcs.xml.dist" \
+    -x "bouncer/RELEASING.txt" \
+    -x "bouncer/.DS_Store" \
+    -x "bouncer/Thumbs.db"
+
+Do **not** zip from inside the repo root with `zip ... .` — that produces a flat zip and breaks paths when the uploader renames the folder.
+
+Git tag
+-------
+  git tag -a v1.0.0 -m "Bouncer 1.0.0"
+  git push origin v1.0.0
+
+WordPress.org SVN (if applicable)
+---------------------------------
+* Copy plugin files into /trunk, sync tags/1.0.0 from that tree
+* readme.txt Stable tag must match BOUNCER_VERSION

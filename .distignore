@@ -1,0 +1,26 @@
+# Excluded from `wp dist-archive` / distribution zip (development & tooling only).
+.git
+.github
+.gitignore
+.distignore
+
+.dev
+.vscode
+.cursor
+.idea
+*.log
+plugin-check-output.log
+
+dev-environment/
+
+node_modules
+vendor
+composer.lock
+package.json
+package-lock.json
+
+*.md
+RELEASING.txt
+
+.DS_Store
+Thumbs.db

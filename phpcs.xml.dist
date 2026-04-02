@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<ruleset name="Bouncer">
+	<description>PHPCS for Bouncer (Core + Security; db.php excluded as early drop-in)</description>
+
+	<file>.</file>
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<exclude-pattern>*/dev-environment/*</exclude-pattern>
+	<exclude-pattern>db.php</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg value="ps"/>
+
+	<!-- Core+Security pulls strict DB/ternary sniffs; keep scan focused on submission-critical issues. -->
+	<rule ref="WordPress.Security"/>
+</ruleset>

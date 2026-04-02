@@ -1,0 +1,483 @@
+/**
+ * Bouncer Admin Styles
+ *
+ * @package Bouncer
+ */
+
+/* Layout */
+.bouncer-wrap {
+	max-width: 1200px;
+}
+
+.bouncer-nav-tab-wrapper {
+	margin: 0 0 12px;
+	padding-top: 4px;
+}
+
+.bouncer-nav-tab-wrapper a.nav-tab:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+	box-shadow: none;
+}
+
+.bouncer-enforce-summary {
+	margin: 12px 0 16px;
+	max-width: 1200px;
+}
+
+.bouncer-title,
+.bouncer-page-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.bouncer-title .dashicons,
+.bouncer-page-title .dashicons {
+	font-size: 28px;
+	width: 28px;
+	height: 28px;
+}
+
+/* Mode Badge */
+.bouncer-mode-badge {
+	display: inline-block;
+	padding: 4px 12px;
+	border-radius: 4px;
+	font-size: 13px;
+	font-weight: 600;
+	margin-bottom: 20px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.bouncer-mode-monitor {
+	background: #fcf9e8;
+	color: #50575e;
+	border: 1px solid #dba617;
+}
+
+.bouncer-mode-enforce {
+	background: #edfaef;
+	color: #1d2327;
+	border: 1px solid #00a32a;
+}
+
+/* Stats Grid */
+.bouncer-stats-grid {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 16px;
+	margin: 20px 0;
+}
+
+.bouncer-stat {
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	border-radius: 4px;
+	padding: 20px;
+	text-align: center;
+	border-left: 4px solid #ccd0d4;
+}
+
+.bouncer-stat-number {
+	display: block;
+	font-size: 32px;
+	font-weight: 700;
+	line-height: 1.2;
+}
+
+.bouncer-stat-label {
+	display: block;
+	font-size: 13px;
+	color: #50575e;
+	margin-top: 4px;
+}
+
+.bouncer-stat-info {
+	border-left-color: #2271b1;
+}
+
+.bouncer-stat-info .bouncer-stat-number {
+	color: #2271b1;
+}
+
+.bouncer-stat-warning {
+	border-left-color: #dba617;
+}
+
+.bouncer-stat-warning .bouncer-stat-number {
+	color: #996800;
+}
+
+.bouncer-stat-critical {
+	border-left-color: #d63638;
+}
+
+.bouncer-stat-critical .bouncer-stat-number {
+	color: #d63638;
+}
+
+.bouncer-stat-emergency {
+	border-left-color: #8b0000;
+}
+
+.bouncer-stat-emergency .bouncer-stat-number {
+	color: #8b0000;
+}
+
+/* Status indicators */
+.bouncer-status-active {
+	color: #00a32a;
+	font-weight: 600;
+}
+
+.bouncer-status-inactive {
+	color: #787c82;
+}
+
+/* Severity counts in tables */
+.bouncer-count-warning {
+	background: #fcf9e8;
+	color: #5c4300;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-weight: 600;
+	border: 1px solid #dba617;
+}
+
+.bouncer-count-critical {
+	background: #fcf0f1;
+	color: #d63638;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-weight: 600;
+	border: 1px solid #d63638;
+}
+
+.bouncer-count-emergency {
+	background: #d63638;
+	color: #fff;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-weight: 600;
+}
+
+/* Badges */
+.bouncer-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 12px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.3px;
+}
+
+.bouncer-badge-info {
+	background: #e8f4fd;
+	color: #2271b1;
+}
+
+.bouncer-badge-warning {
+	background: #fff4d6;
+	color: #5c4a00;
+	border: 1px solid #dba617;
+}
+
+.bouncer-badge-critical {
+	background: #f8d7da;
+	color: #721c24;
+}
+
+.bouncer-badge-emergency {
+	background: #8b0000;
+	color: #fff;
+}
+
+.bouncer-badge-unknown {
+	background: #f0f0f1;
+	color: #646970;
+}
+
+/* Risk badges */
+.bouncer-risk-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.bouncer-risk-low {
+	background: #edfaef;
+	color: #1d2327;
+	border: 1px solid #00a32a;
+}
+
+.bouncer-risk-medium {
+	background: #fcf9e8;
+	color: #996800;
+	border: 1px solid #dba617;
+}
+
+.bouncer-risk-high {
+	background: #fcf0f1;
+	color: #d63638;
+	border: 1px solid #d63638;
+}
+
+/* Event log */
+.bouncer-events-table .bouncer-event-time {
+	white-space: nowrap;
+	font-size: 12px;
+	color: #646970;
+}
+
+.bouncer-events-table code {
+	font-size: 12px;
+}
+
+.bouncer-event-emergency {
+	background-color: #fef2f2 !important;
+}
+
+.bouncer-event-critical {
+	background-color: #fefce8 !important;
+}
+
+/* Filters */
+.bouncer-filters {
+	margin: 16px 0;
+	padding: 12px;
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	border-radius: 4px;
+}
+
+.bouncer-filters form {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+/* Manifest JSON */
+.bouncer-manifest-json {
+	background: #1d2327;
+	color: #50c878;
+	padding: 20px;
+	border-radius: 4px;
+	font-size: 13px;
+	line-height: 1.6;
+	overflow-x: auto;
+	max-height: 600px;
+}
+
+.bouncer-manifest-header {
+	background: #fff;
+	border: 1px solid #ccd0d4;
+	border-radius: 4px;
+	padding: 16px;
+	margin: 16px 0;
+}
+
+.bouncer-ai-assessment {
+	margin-top: 12px;
+	padding: 12px;
+	background: #f0f6fc;
+	border-radius: 4px;
+	font-size: 14px;
+	line-height: 1.5;
+}
+
+/* AI experience: Quick Look / Brain / Deep Dive */
+.bouncer-ai-modes-intro {
+	margin: 24px 0 8px;
+	padding: 20px 20px 8px;
+	background: #fff;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.bouncer-ai-modes-lede {
+	margin-top: 4px;
+	max-width: 720px;
+}
+
+.bouncer-ai-modes-grid {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 16px;
+	margin: 16px 0 12px;
+}
+
+.bouncer-ai-mode-card {
+	padding: 16px;
+	border-radius: 4px;
+	border: 1px solid #dcdcde;
+	background: #f6f7f7;
+	min-height: 140px;
+}
+
+.bouncer-ai-mode-card .dashicons {
+	font-size: 28px;
+	width: 28px;
+	height: 28px;
+	color: #2271b1;
+	margin-bottom: 8px;
+}
+
+.bouncer-ai-mode-card h3 {
+	margin: 0 0 8px;
+	font-size: 14px;
+}
+
+.bouncer-ai-mode-card p {
+	margin: 0;
+	font-size: 13px;
+	line-height: 1.5;
+	color: #50575e;
+}
+
+.bouncer-ai-mode-quick {
+	border-top: 3px solid #00a32a;
+}
+
+.bouncer-ai-mode-brain {
+	border-top: 3px solid #2271b1;
+}
+
+.bouncer-ai-mode-deep {
+	border-top: 3px solid #8b5cf6;
+}
+
+.bouncer-quick-line {
+	margin-top: 6px;
+	font-size: 12px;
+	line-height: 1.4;
+	color: #50575e;
+	max-width: 280px;
+}
+
+.bouncer-quick-look-card {
+	margin: 16px 0;
+	padding: 16px 20px;
+	border-radius: 4px;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+	border-left-width: 4px;
+}
+
+.bouncer-quick-look-card.bouncer-traffic-calm {
+	border-left-color: #00a32a;
+	background: linear-gradient(90deg, #edfaef 0%, #fff 48%);
+}
+
+.bouncer-quick-look-card.bouncer-traffic-watch {
+	border-left-color: #dba617;
+	background: linear-gradient(90deg, #fcf9e8 0%, #fff 48%);
+}
+
+.bouncer-quick-look-card.bouncer-traffic-alert {
+	border-left-color: #d63638;
+	background: linear-gradient(90deg, #fcf0f1 0%, #fff 48%);
+}
+
+.bouncer-quick-look-card h3 {
+	margin-top: 0;
+}
+
+.bouncer-quick-headline {
+	font-size: 15px;
+	font-weight: 600;
+	margin: 0 0 8px;
+}
+
+.bouncer-quick-score-note {
+	font-size: 13px;
+	color: #50575e;
+	margin: 0 0 12px;
+}
+
+.bouncer-quick-bullets {
+	margin: 0 0 12px 1.2em;
+	padding: 0;
+}
+
+.bouncer-quick-bullets li {
+	margin-bottom: 6px;
+}
+
+.bouncer-quick-badge-wrap {
+	margin: 0;
+}
+
+.bouncer-brain-panel {
+	margin: 16px 0;
+	padding: 14px 18px;
+	border-radius: 4px;
+	border: 1px dashed #c3c4c7;
+	background: #f6f7f7;
+}
+
+.bouncer-brain-panel.is-ready {
+	border-style: solid;
+	border-color: #00a32a;
+	background: #edfaef;
+}
+
+.bouncer-brain-panel h3 {
+	margin-top: 0;
+}
+
+.bouncer-deep-dive-block {
+	margin: 16px 0;
+	padding: 12px 16px;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+	background: #f0f6fc;
+}
+
+.bouncer-deep-dive-block summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+.bouncer-deep-dive-body {
+	margin-top: 12px;
+	font-size: 14px;
+	line-height: 1.6;
+	white-space: pre-wrap;
+}
+
+.bouncer-deep-dive-empty {
+	margin: 12px 0 0;
+}
+
+/* Channels status */
+.bouncer-channels-status,
+.bouncer-plugin-summary {
+	margin-top: 24px;
+}
+
+/* Pagination */
+.bouncer-pagination {
+	margin: 20px 0;
+	text-align: center;
+}
+
+/* Responsive */
+@media screen and (max-width: 782px) {
+	.bouncer-stats-grid {
+		grid-template-columns: repeat(2, 1fr);
+	}
+
+	.bouncer-filters form {
+		flex-wrap: wrap;
+	}
+
+	.bouncer-ai-modes-grid {
+		grid-template-columns: 1fr;
+	}
+}
