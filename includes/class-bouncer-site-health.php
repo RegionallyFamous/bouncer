@@ -33,10 +33,6 @@ class Bouncer_Site_Health {
 			'label' => __( 'Bouncer operating mode', 'bouncer' ),
 			'test'  => array( __CLASS__, 'test_operating_mode' ),
 		);
-		$tests['direct']['bouncer_brain'] = array(
-			'label' => __( 'Bouncer Brain (optional on-server check)', 'bouncer' ),
-			'test'  => array( __CLASS__, 'test_bouncer_brain' ),
-		);
 		return $tests;
 	}
 
@@ -154,90 +150,6 @@ class Bouncer_Site_Health {
 	}
 
 	/**
-	 * @return array<string, mixed>
-	 */
-	public static function test_bouncer_brain(): array {
-		$url     = bouncer_admin_url( 'settings' );
-		$enabled = (bool) get_option( 'bouncer_local_brain_enabled', false );
-
-		if ( ! $enabled ) {
-			return array(
-				'label'       => __( 'Bouncer Brain is off (Quick Look still runs)', 'bouncer' ),
-				'status'      => 'good',
-				'badge'       => array(
-					'label' => __( 'Security', 'bouncer' ),
-					'color' => 'blue',
-				),
-				'description' => '<p>' . esc_html__( 'That’s fine — every plugin still gets an automatic Quick Look. Turn on Bouncer Brain in Settings when you want an optional on-server second opinion.', 'bouncer' ) . '</p>',
-				'actions'     => sprintf(
-					'<p><a href="%s">%s</a></p>',
-					esc_url( $url ),
-					esc_html__( 'Bouncer settings', 'bouncer' )
-				),
-				'test'        => 'bouncer_brain',
-			);
-		}
-
-		if ( ! class_exists( 'Bouncer_AI_Experience' ) ) {
-			return array(
-				'label'       => __( 'Bouncer Brain status unavailable', 'bouncer' ),
-				'status'      => 'recommended',
-				'badge'       => array(
-					'label' => __( 'Security', 'bouncer' ),
-					'color' => 'orange',
-				),
-				'description' => '<p>' . esc_html__( 'We couldn’t load the helper that explains Brain status. Quick Look is unaffected.', 'bouncer' ) . '</p>',
-				'actions'     => sprintf(
-					'<p><a href="%s">%s</a></p>',
-					esc_url( $url ),
-					esc_html__( 'Bouncer settings', 'bouncer' )
-				),
-				'test'        => 'bouncer_brain',
-			);
-		}
-
-		$panel = Bouncer_AI_Experience::local_brain_panel();
-		if ( ! empty( $panel['ready'] ) ) {
-			return array(
-				'label'       => __( 'Bouncer Brain is ready on this host', 'bouncer' ),
-				'status'      => 'good',
-				'badge'       => array(
-					'label' => __( 'Security', 'bouncer' ),
-					'color' => 'blue',
-				),
-				'description' => '<p>' . esc_html( $panel['body'] ) . '</p>',
-				'actions'     => sprintf(
-					'<p><a href="%s">%s</a></p>',
-					esc_url( $url ),
-					esc_html__( 'Bouncer settings', 'bouncer' )
-				),
-				'test'        => 'bouncer_brain',
-			);
-		}
-
-		$description = '<p>' . esc_html( $panel['body'] ) . '</p>';
-		if ( '' !== $panel['hint'] ) {
-			$description .= '<p>' . esc_html( $panel['hint'] ) . '</p>';
-		}
-
-		return array(
-			'label'       => $panel['title'],
-			'status'      => 'recommended',
-			'badge'       => array(
-				'label' => __( 'Security', 'bouncer' ),
-				'color' => 'orange',
-			),
-			'description' => $description,
-			'actions'     => sprintf(
-				'<p><a href="%s">%s</a></p>',
-				esc_url( $url ),
-				esc_html__( 'Bouncer settings', 'bouncer' )
-			),
-			'test'        => 'bouncer_brain',
-		);
-	}
-
-	/**
 	 * @param array<string, array<string, mixed>> $info Debug info sections.
 	 * @return array<string, array<string, mixed>>
 	 */
@@ -265,17 +177,9 @@ class Bouncer_Site_Health {
 					'label' => __( 'Bouncer DB class loaded this request', 'bouncer' ),
 					'value' => defined( 'BOUNCER_DB_DROPIN_LOADED' ) && BOUNCER_DB_DROPIN_LOADED ? __( 'Yes', 'bouncer' ) : __( 'No', 'bouncer' ),
 				),
-				'local_brain_on' => array(
-					'label' => __( 'Bouncer Brain enabled in settings', 'bouncer' ),
-					'value' => get_option( 'bouncer_local_brain_enabled', false ) ? __( 'Yes', 'bouncer' ) : __( 'No', 'bouncer' ),
-				),
-				'local_brain_ready' => array(
-					'label' => __( 'Bouncer Brain ready (FFI + model file)', 'bouncer' ),
-					'value' => ( class_exists( 'Bouncer_AI_Experience' ) && Bouncer_AI_Experience::local_brain_panel()['ready'] ) ? __( 'Yes', 'bouncer' ) : __( 'No', 'bouncer' ),
-				),
-				'php_ffi'       => array(
-					'label' => __( 'PHP FFI extension loaded', 'bouncer' ),
-					'value' => extension_loaded( 'ffi' ) ? __( 'Yes', 'bouncer' ) : __( 'No', 'bouncer' ),
+				'deep_dive_enabled' => array(
+					'label' => __( 'Deep Dive (Claude) enabled in settings', 'bouncer' ),
+					'value' => get_option( 'bouncer_ai_scanning', false ) ? __( 'Yes', 'bouncer' ) : __( 'No', 'bouncer' ),
 				),
 			),
 		);

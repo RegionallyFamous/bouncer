@@ -52,13 +52,13 @@ if ( is_dir( $bouncer_data_dir ) && class_exists( 'Bouncer_Filesystem', false ) 
 	Bouncer_Filesystem::delete_tree( $bouncer_data_dir );
 }
 
-// Remove optional Brain helper directory under uploads (not part of the plugin zip).
+// Remove legacy uploads subfolder if present (e.g. old local model cache).
 if ( class_exists( 'Bouncer_Filesystem', false ) && function_exists( 'wp_upload_dir' ) ) {
 	$bouncer_uploads = wp_upload_dir();
 	if ( empty( $bouncer_uploads['error'] ) && ! empty( $bouncer_uploads['basedir'] ) ) {
-		$bouncer_brain_parent = trailingslashit( $bouncer_uploads['basedir'] ) . 'bouncer';
-		if ( is_dir( $bouncer_brain_parent ) ) {
-			Bouncer_Filesystem::delete_tree( $bouncer_brain_parent );
+		$bouncer_uploads_dir = trailingslashit( $bouncer_uploads['basedir'] ) . 'bouncer';
+		if ( is_dir( $bouncer_uploads_dir ) ) {
+			Bouncer_Filesystem::delete_tree( $bouncer_uploads_dir );
 		}
 	}
 }

@@ -105,11 +105,3 @@ The old model: trust plugins by reputation, scan for known threats, patch after 
 The new model: verify behavior continuously, detect anomalies in real-time, catch compromises before they have a name.
 
 Bouncer is the new model. For the WordPress you already have.
-
----
-
-<p align="center">
-  <strong>Bouncer</strong> — a plugin behavior firewall for WordPress.<br/>
-  Built with Claude. Maintained by <a href="https://regionallyfamous.com">Regionally Famous</a>.<br/><br/>
-  <a href="https://wordpress.org/plugins/bouncer/">WordPress.org</a> · <a href="https://regionallyfamous.com/bouncer">Documentation</a> · <a href="https://github.com/RegionallyFamous/bouncer/issues">Report an Issue</a>
-</p>

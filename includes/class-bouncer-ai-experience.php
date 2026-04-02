@@ -1,6 +1,6 @@
 <?php
 /**
- * User-facing “Quick Look”, optional local brain, and Deep Dive copy helpers.
+ * User-facing Quick Look copy helpers (plain language, no jargon in returned strings).
  *
  * @package Bouncer
  */
@@ -143,74 +143,5 @@ class Bouncer_AI_Experience {
 		}
 
 		return $out;
-	}
-
-	/**
-	 * User-facing status when “Bouncer Brain” (on-server) is toggled on.
-	 *
-	 * @return array{ready: bool, title: string, body: string, hint: string}
-	 */
-	public static function local_brain_panel(): array {
-		$enabled = (bool) get_option( 'bouncer_local_brain_enabled', false );
-		if ( ! $enabled ) {
-			return array(
-				'ready' => false,
-				'title' => __( 'Bouncer Brain is off', 'bouncer' ),
-				'body'  => __( 'Turn it on below if you want a future on-server second opinion (no cloud) when your host supports it.', 'bouncer' ),
-				'hint'  => '',
-			);
-		}
-
-		$model_path = (string) get_option( 'bouncer_local_brain_model_path', '' );
-		$ffi        = extension_loaded( 'ffi' );
-		$has_file   = '' !== $model_path && is_readable( $model_path );
-
-		if ( $ffi && $has_file ) {
-			return array(
-				'ready' => true,
-				'title' => __( 'Bouncer Brain: ready', 'bouncer' ),
-				'body'  => __( 'Your server has the pieces we need. Smart scoring will run on installs and updates.', 'bouncer' ),
-				'hint'  => '',
-			);
-		}
-
-		if ( ! $ffi ) {
-			return array(
-				'ready' => false,
-				'title' => __( 'Bouncer Brain: not available on this host', 'bouncer' ),
-				'body'  => __( 'Your host hasn’t turned on a PHP feature we need for on-server scoring. No worries — Quick Look still works, and you can use Deep Dive with a key if you want the full story.', 'bouncer' ),
-				'hint'  => __( 'Tip: VPS and managed WordPress hosts are more likely to support this than ultra-cheap shared boxes.', 'bouncer' ),
-			);
-		}
-
-		return array(
-			'ready' => false,
-			'title' => __( 'Bouncer Brain: waiting on a helper file', 'bouncer' ),
-			'body'  => __( 'FFI is on, but we don’t see the on-server helper file yet. In Settings → Bouncer Brain, use Download when it’s available, or paste a path under Troubleshooting if your host gave you a file.', 'bouncer' ),
-			'hint'  => __( 'The helper file is large and installs under your uploads folder — not inside the plugin zip.', 'bouncer' ),
-		);
-	}
-
-	/**
-	 * Hook point after manifest generation (future ONNX / local classifier).
-	 *
-	 * @param string               $slug    Plugin slug.
-	 * @param array<string, mixed>|null $manifest Manifest or null.
-	 */
-	public static function maybe_run_local_brain( string $slug, ?array $manifest ): void {
-		if ( ! get_option( 'bouncer_local_brain_enabled', false ) ) {
-			return;
-		}
-		$panel = self::local_brain_panel();
-		if ( ! $panel['ready'] || null === $manifest ) {
-			return;
-		}
-		/**
-		 * Fires when local brain would run (model + host ready). Implement inference here later.
-		 *
-		 * @param string              $slug     Plugin slug.
-		 * @param array<string,mixed> $manifest Manifest data.
-		 */
-		do_action( 'bouncer_local_brain_scan', $slug, $manifest );
 	}
 }

@@ -290,7 +290,7 @@
 	line-height: 1.5;
 }
 
-/* AI experience: Quick Look / Brain / Deep Dive */
+/* AI experience: Quick Look / Deep Dive */
 .bouncer-ai-modes-intro {
 	margin: 24px 0 8px;
 	padding: 20px 20px 8px;
@@ -307,7 +307,7 @@
 
 .bouncer-ai-modes-grid {
 	display: grid;
-	grid-template-columns: repeat(3, 1fr);
+	grid-template-columns: repeat(2, 1fr);
 	gap: 16px;
 	margin: 16px 0 12px;
 }
@@ -342,10 +342,6 @@
 
 .bouncer-ai-mode-quick {
 	border-top: 3px solid #00a32a;
-}
-
-.bouncer-ai-mode-brain {
-	border-top: 3px solid #2271b1;
 }
 
 .bouncer-ai-mode-deep {
@@ -411,24 +407,6 @@
 
 .bouncer-quick-badge-wrap {
 	margin: 0;
-}
-
-.bouncer-brain-panel {
-	margin: 16px 0;
-	padding: 14px 18px;
-	border-radius: 4px;
-	border: 1px dashed #c3c4c7;
-	background: #f6f7f7;
-}
-
-.bouncer-brain-panel.is-ready {
-	border-style: solid;
-	border-color: #00a32a;
-	background: #edfaef;
-}
-
-.bouncer-brain-panel h3 {
-	margin-top: 0;
 }
 
 .bouncer-deep-dive-block {

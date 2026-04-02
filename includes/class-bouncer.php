@@ -55,16 +55,9 @@ class Bouncer {
 			$this->file_integrity->init();
 		}
 
-		// AI Scanner — uses WP 7.0 Connectors API when available.
-		if ( $this->get_setting( 'ai_scanning' ) ) {
-			$legacy_key       = $this->get_setting( 'ai_api_key', '' );
-			$this->ai_scanner = new Bouncer_Ai_Scanner( $this->logger, $this->manifest, $legacy_key );
-
-			// Only keep the scanner if it can actually resolve a key.
-			if ( ! $this->ai_scanner->is_available() ) {
-				$this->ai_scanner = null;
-			}
-		}
+		// AI Scanner — Connectors register after plugins_loaded on WP 7.0+, so we re-resolve on init.
+		$this->refresh_ai_scanner();
+		add_action( 'init', array( $this, 'refresh_ai_scanner' ), 20 );
 
 		if ( is_admin() ) {
 			Bouncer_Site_Health::init();
@@ -134,6 +127,26 @@ class Bouncer {
 		}
 	}
 
+	/**
+	 * Deep Dive scanner when the setting is on and an API key resolves (Connectors may register after Bouncer’s plugins_loaded init).
+	 */
+	public function get_ai_scanner_if_available(): ?Bouncer_Ai_Scanner {
+		if ( ! $this->get_setting( 'ai_scanning' ) ) {
+			return null;
+		}
+		$legacy = $this->get_setting( 'ai_api_key', '' );
+		$legacy = is_string( $legacy ) ? $legacy : '';
+		$scanner = new Bouncer_Ai_Scanner( $this->logger, $this->manifest, $legacy );
+		return $scanner->is_available() ? $scanner : null;
+	}
+
+	/**
+	 * Refresh cached AI scanner (call after Connectors API is available).
+	 */
+	public function refresh_ai_scanner(): void {
+		$this->ai_scanner = $this->get_ai_scanner_if_available();
+	}
+
 	/** @return mixed */
 	public function get_setting( string $key, $default = false ) {
 		return get_option( "bouncer_{$key}", $default );
@@ -188,10 +201,10 @@ class Bouncer {
 
 		foreach ( $slugs as $slug ) {
 			$m = $this->manifest->generate_for_plugin( $slug );
-			Bouncer_AI_Experience::maybe_run_local_brain( $slug, $m );
 
-			if ( $this->ai_scanner ) {
-				$this->ai_scanner->scan_plugin( $slug );
+			$ai_scanner = $this->get_ai_scanner_if_available();
+			if ( $ai_scanner ) {
+				$ai_scanner->scan_plugin( $slug );
 			}
 			if ( $this->file_integrity ) {
 				$this->file_integrity->record_baseline( $slug );
@@ -208,8 +221,7 @@ class Bouncer {
 		}
 
 		if ( ! $this->manifest->has_manifest( $slug ) ) {
-			$m = $this->manifest->generate_for_plugin( $slug );
-			Bouncer_AI_Experience::maybe_run_local_brain( $slug, $m );
+			$this->manifest->generate_for_plugin( $slug );
 		}
 		if ( $this->hook_auditor ) {
 			$this->hook_auditor->record_baseline( $slug );
@@ -316,10 +328,12 @@ class Bouncer {
 					$run_ai = null === $run_ai ? true : rest_sanitize_boolean( $run_ai );
 
 					$m = $this->manifest->generate_for_plugin( $slug );
-					Bouncer_AI_Experience::maybe_run_local_brain( $slug, $m );
 					$ai = null;
-					if ( $run_ai && $this->ai_scanner ) {
-						$ai = $this->ai_scanner->scan_plugin( $slug );
+					if ( $run_ai ) {
+						$ai_scanner = $this->get_ai_scanner_if_available();
+						if ( $ai_scanner ) {
+							$ai = $ai_scanner->scan_plugin( $slug );
+						}
 					}
 					return rest_ensure_response(
 						array(

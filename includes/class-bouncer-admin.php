@@ -61,52 +61,6 @@ class Bouncer_Admin {
 		add_action( 'wp_ajax_bouncer_scan_plugin', array( $this, 'ajax_scan_plugin' ) );
 		add_action( 'wp_ajax_bouncer_generate_manifest', array( $this, 'ajax_generate_manifest' ) );
 		add_action( 'wp_ajax_bouncer_dismiss_notice', array( $this, 'ajax_dismiss_notice' ) );
-
-		add_action( 'load-tools_page_bouncer', array( $this, 'maybe_handle_brain_url_actions' ), 0 );
-	}
-
-	/**
-	 * GET + nonce: download or remove Brain helper file (cannot nest forms inside options.php).
-	 */
-	public function maybe_handle_brain_url_actions(): void {
-		if ( ! bouncer_current_user_can_manage() ) {
-			return;
-		}
-
-		if ( isset( $_GET['bouncer_brain_download'] ) && '1' === $_GET['bouncer_brain_download'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			check_admin_referer( 'bouncer_brain_model_download' );
-			$force  = isset( $_GET['bouncer_brain_force'] ) && '1' === $_GET['bouncer_brain_force']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			$result = Bouncer_Brain_Model::download( $force );
-			set_transient( 'bouncer_brain_notice_' . get_current_user_id(), $result, 2 * MINUTE_IN_SECONDS );
-			wp_safe_redirect(
-				add_query_arg(
-					array(
-						'page'               => 'bouncer',
-						'tab'                => 'settings',
-						'bouncer_brain_done' => '1',
-					),
-					admin_url( 'tools.php' )
-				)
-			);
-			exit;
-		}
-
-		if ( isset( $_GET['bouncer_brain_remove'] ) && '1' === $_GET['bouncer_brain_remove'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			check_admin_referer( 'bouncer_brain_model_remove' );
-			$result = Bouncer_Brain_Model::remove_managed();
-			set_transient( 'bouncer_brain_notice_' . get_current_user_id(), $result, 2 * MINUTE_IN_SECONDS );
-			wp_safe_redirect(
-				add_query_arg(
-					array(
-						'page'               => 'bouncer',
-						'tab'                => 'settings',
-						'bouncer_brain_done' => '1',
-					),
-					admin_url( 'tools.php' )
-				)
-			);
-			exit;
-		}
 	}
 
 	/**
@@ -319,7 +273,6 @@ class Bouncer_Admin {
 		}
 		$content  = '<p>' . esc_html__( 'Bouncer records security and monitoring events (which may include request paths, plugin identifiers, and IP addresses) to detect unusual plugin behavior. Retention is controlled in Bouncer’s settings.', 'bouncer' ) . '</p>';
 		$content .= '<p>' . esc_html__( 'If AI scanning is enabled, Bouncer sends structural fingerprints of plugin code to your configured AI provider—not raw source files—according to that provider’s terms.', 'bouncer' ) . '</p>';
-		$content .= '<p>' . esc_html__( 'If you enable known-vulnerability lookups, Bouncer requests public metadata from the WPVulnerability project for installed plugin slugs (no site content is transmitted).', 'bouncer' ) . '</p>';
 		wp_add_privacy_policy_content( 'Bouncer', $content );
 	}
 
@@ -348,9 +301,7 @@ class Bouncer_Admin {
 			'bouncer_file_integrity',
 			'bouncer_ai_scanning',
 			'bouncer_community_telemetry',
-			'bouncer_advisory_lookup',
 			'bouncer_rest_monitoring',
-			'bouncer_local_brain_enabled',
 			'bouncer_digest_enabled',
 			'bouncer_notify_on_warning',
 			'bouncer_notify_on_critical',
@@ -447,19 +398,6 @@ class Bouncer_Admin {
 				'capability'        => BOUNCER_CAP,
 				'sanitize_callback' => static function ( $v ) {
 					return in_array( $v, array( 'daily', 'weekly' ), true ) ? $v : 'daily';
-				},
-			)
-		);
-
-		register_setting(
-			'bouncer_settings',
-			'bouncer_local_brain_model_path',
-			array(
-				'type'              => 'string',
-				'capability'        => BOUNCER_CAP,
-				'sanitize_callback' => static function ( $v ) {
-					$v = trim( (string) $v );
-					return preg_match( '#^([a-zA-Z]:)?[/\\\\]#', $v ) || '' === $v ? $v : '';
 				},
 			)
 		);
@@ -632,34 +570,18 @@ class Bouncer_Admin {
 							<td><span class="bouncer-status-active">&#9679; <?php esc_html_e( 'Always on', 'bouncer' ); ?></span></td>
 						</tr>
 						<tr>
-							<td><?php esc_html_e( 'Bouncer Brain (on your server)', 'bouncer' ); ?></td>
-							<td>
-								<?php
-								$brain = Bouncer_AI_Experience::local_brain_panel();
-								echo $brain['ready']
-									? '<span class="bouncer-status-active">&#9679; ' . esc_html__( 'Ready', 'bouncer' ) . '</span>'
-									: '<span class="bouncer-status-inactive">&#9679; ' . esc_html__( 'Off or not available', 'bouncer' ) . '</span>';
-								?>
-							</td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'Deep Dive (plain-English story)', 'bouncer' ); ?></td>
+							<td><?php esc_html_e( 'Deep Dive (Claude)', 'bouncer' ); ?></td>
 							<td>
 								<?php
 								$deep = false;
 								if ( $this->bouncer->get_setting( 'ai_scanning' ) ) {
-									$scanner = $this->bouncer->ai_scanner ?: new Bouncer_Ai_Scanner( $this->bouncer->logger, $this->bouncer->manifest );
-									$deep    = $scanner->is_available();
+									$deep = null !== $this->bouncer->get_ai_scanner_if_available();
 								}
 								echo $deep
 									? '<span class="bouncer-status-active">&#9679; ' . esc_html__( 'Active', 'bouncer' ) . '</span>'
 									: '<span class="bouncer-status-inactive">&#9679; ' . esc_html__( 'Off or needs a key', 'bouncer' ) . '</span>';
 								?>
 							</td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'Known vulnerability lookups (WPVulnerability)', 'bouncer' ); ?></td>
-							<td><?php echo $this->bouncer->get_setting( 'advisory_lookup' ) ? '<span class="bouncer-status-active">&#9679; Active</span>' : '<span class="bouncer-status-inactive">&#9679; Inactive</span>'; ?></td>
 						</tr>
 						<tr>
 							<td><?php esc_html_e( 'REST unauthenticated write logging', 'bouncer' ); ?></td>
@@ -706,132 +628,32 @@ class Bouncer_Admin {
 				</table>
 			</div>
 			<?php endif; ?>
-
-			<?php if ( $this->bouncer->get_setting( 'advisory_lookup' ) ) : ?>
-				<?php $this->render_advisories_section(); ?>
-			<?php endif; ?>
 		<?php
 	}
 
 	/**
-	 * Dashboard: plain-language intro to the three ways Bouncer reads plugins.
+	 * Dashboard: plain-language intro to Quick Look vs Deep Dive (Claude).
 	 */
 	private function render_ai_modes_intro(): void {
 		?>
 		<div class="bouncer-ai-modes-intro" role="region" aria-labelledby="bouncer-ai-modes-heading">
 			<h2 id="bouncer-ai-modes-heading"><?php esc_html_e( 'How Bouncer reads plugins', 'bouncer' ); ?></h2>
 			<p class="description bouncer-ai-modes-lede">
-				<?php esc_html_e( 'Three speeds, zero jargon. Pick what matches how curious you are — you can change it anytime in Settings.', 'bouncer' ); ?>
+				<?php esc_html_e( 'Two layers: a free structural pass on your server, plus optional Claude-powered prose when you add a key.', 'bouncer' ); ?>
 			</p>
 			<div class="bouncer-ai-modes-grid">
 				<div class="bouncer-ai-mode-card bouncer-ai-mode-quick">
 					<span class="dashicons dashicons-search" aria-hidden="true"></span>
 					<h3><?php esc_html_e( 'Quick Look', 'bouncer' ); ?></h3>
-					<p><?php esc_html_e( 'Always running: a fast structural check on every plugin. You get a plain-English verdict and a few bullets — no keys, no downloads.', 'bouncer' ); ?></p>
-				</div>
-				<div class="bouncer-ai-mode-card bouncer-ai-mode-brain">
-					<span class="dashicons dashicons-admin-generic" aria-hidden="true"></span>
-					<h3><?php esc_html_e( 'Bouncer Brain', 'bouncer' ); ?></h3>
-					<p><?php esc_html_e( 'Optional second opinion that stays on your server — no cloud bill. Great when your host supports it; we’ll say “not today” politely if it doesn’t.', 'bouncer' ); ?></p>
+					<p><?php esc_html_e( 'Always running: a fast structural check on every plugin. Plain-English verdict and bullets — no API key.', 'bouncer' ); ?></p>
 				</div>
 				<div class="bouncer-ai-mode-card bouncer-ai-mode-deep">
 					<span class="dashicons dashicons-welcome-learn-more" aria-hidden="true"></span>
-					<h3><?php esc_html_e( 'Deep Dive', 'bouncer' ); ?></h3>
-					<p><?php esc_html_e( 'The full story: what changed, why it might matter, in normal sentences. Uses a trusted AI service when you add a key — totally optional.', 'bouncer' ); ?></p>
+					<h3><?php esc_html_e( 'Deep Dive (Claude)', 'bouncer' ); ?></h3>
+					<p><?php esc_html_e( 'The long version: risk, changes, and context in full sentences. Uses Anthropic’s Claude with structural fingerprints only — optional, bring your own key.', 'bouncer' ); ?></p>
 				</div>
 			</div>
 		</div>
-		<?php
-	}
-
-	/**
-	 * Dashboard: plugins with known CVEs affecting the installed version (WPVulnerability).
-	 */
-	private function render_advisories_section(): void {
-		if ( ! function_exists( 'get_plugins' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/plugin.php';
-		}
-
-		$plugins = get_plugins();
-		$active  = (array) get_option( 'active_plugins', array() );
-		if ( is_multisite() ) {
-			$network = array_keys( (array) get_site_option( 'active_sitewide_plugins', array() ) );
-			$active  = array_values( array_unique( array_merge( $active, $network ) ) );
-		}
-		$rows = array();
-
-		foreach ( $active as $plugin_file ) {
-			$slug = dirname( $plugin_file );
-			if ( '.' === $slug ) {
-				$slug = basename( $plugin_file, '.php' );
-			}
-			if ( 'bouncer' === $slug ) {
-				continue;
-			}
-			$ver = isset( $plugins[ $plugin_file ]['Version'] ) ? (string) $plugins[ $plugin_file ]['Version'] : '';
-			if ( '' === $ver ) {
-				continue;
-			}
-			$hits = Bouncer_Advisories::get_affecting_for_version( $slug, $ver );
-			if ( ! empty( $hits ) ) {
-				$rows[] = array(
-					'slug'  => $slug,
-					'ver'   => $ver,
-					'count' => count( $hits ),
-					'first' => $hits[0],
-				);
-			}
-		}
-
-		?>
-			<div class="bouncer-advisories-section">
-				<h2><?php esc_html_e( 'Known vulnerabilities (installed versions)', 'bouncer' ); ?></h2>
-				<p class="description">
-					<?php
-					echo wp_kses_post(
-						sprintf(
-							/* translators: %s: URL to WPVulnerability */
-							__( 'Data from the <a href="%s" rel="noopener noreferrer" target="_blank">WPVulnerability</a> project. Verify against your stack before acting.', 'bouncer' ),
-							'https://www.wpvulnerability.com/'
-						)
-					);
-					?>
-				</p>
-				<?php if ( empty( $rows ) ) : ?>
-					<p><?php esc_html_e( 'No matching advisories found for active plugins (or data is still loading).', 'bouncer' ); ?></p>
-				<?php else : ?>
-					<table class="widefat striped">
-						<thead>
-							<tr>
-								<th scope="col"><?php esc_html_e( 'Plugin', 'bouncer' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Version', 'bouncer' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Open advisories', 'bouncer' ); ?></th>
-								<th scope="col"><?php esc_html_e( 'Example', 'bouncer' ); ?></th>
-							</tr>
-						</thead>
-						<tbody>
-							<?php foreach ( $rows as $r ) : ?>
-								<tr>
-									<td><strong><?php echo esc_html( $r['slug'] ); ?></strong></td>
-									<td><?php echo esc_html( $r['ver'] ); ?></td>
-									<td><?php echo esc_html( (string) $r['count'] ); ?></td>
-									<td>
-										<?php
-										$label = Bouncer_Advisories::vuln_primary_label( $r['first'] );
-										$link  = Bouncer_Advisories::vuln_primary_link( $r['first'] );
-										if ( $link ) {
-											printf( '<a href="%1$s" rel="noopener noreferrer" target="_blank">%2$s</a>', esc_url( $link ), esc_html( $label ) );
-										} else {
-											echo esc_html( $label );
-										}
-										?>
-									</td>
-								</tr>
-							<?php endforeach; ?>
-						</tbody>
-					</table>
-				<?php endif; ?>
-			</div>
 		<?php
 	}
 
@@ -965,27 +787,16 @@ class Bouncer_Admin {
 					<p class="bouncer-quick-badge-wrap"><?php echo wp_kses_post( $this->render_risk_badge( (int) $manifest['risk_score'] ) ); ?></p>
 				</div>
 
-				<?php
-				$brain = Bouncer_AI_Experience::local_brain_panel();
-				?>
-				<div class="bouncer-brain-panel <?php echo $brain['ready'] ? 'is-ready' : 'is-idle'; ?>">
-					<h3><?php echo esc_html( $brain['title'] ); ?></h3>
-					<p><?php echo esc_html( $brain['body'] ); ?></p>
-					<?php if ( '' !== $brain['hint'] ) : ?>
-						<p class="description"><?php echo esc_html( $brain['hint'] ); ?></p>
-					<?php endif; ?>
-				</div>
-
 				<?php if ( ! empty( $manifest['ai_assessment'] ) ) : ?>
 				<details class="bouncer-deep-dive-block">
-					<summary><?php esc_html_e( 'Deep Dive — full story (tap to expand)', 'bouncer' ); ?></summary>
+					<summary><?php esc_html_e( 'Deep Dive (Claude) — full story (tap to expand)', 'bouncer' ); ?></summary>
 					<div class="bouncer-deep-dive-body">
 						<?php echo esc_html( $manifest['ai_assessment'] ); ?>
 					</div>
 				</details>
 				<?php else : ?>
 				<p class="description bouncer-deep-dive-empty">
-					<?php esc_html_e( 'No Deep Dive story yet. Turn on Deep Dive in Settings and add a key if you want the long-form version.', 'bouncer' ); ?>
+					<?php esc_html_e( 'No Deep Dive story on file yet. With Deep Dive enabled and a key connected, click “Run Quick Look again” below (or reinstall/update the plugin) to generate it.', 'bouncer' ); ?>
 				</p>
 				<?php endif; ?>
 
@@ -995,8 +806,8 @@ class Bouncer_Admin {
 				<button type="button" class="button bouncer-rescan" data-plugin="<?php echo esc_attr( $plugin_slug ); ?>">
 					<?php esc_html_e( 'Run Quick Look again', 'bouncer' ); ?>
 				</button>
-				<?php if ( $this->bouncer->get_setting( 'ai_scanning' ) && $this->bouncer->ai_scanner ) : ?>
-					<span class="description" style="margin-left:8px;"><?php esc_html_e( 'Deep Dive runs automatically when enabled.', 'bouncer' ); ?></span>
+				<?php if ( null !== $this->bouncer->get_ai_scanner_if_available() ) : ?>
+					<span class="description" style="margin-left:8px;"><?php esc_html_e( 'Deep Dive runs with this scan when your key is available.', 'bouncer' ); ?></span>
 				<?php endif; ?>
 			<?php endif; ?>
 		<?php
@@ -1006,54 +817,6 @@ class Bouncer_Admin {
 	 * Settings tab body.
 	 */
 	private function render_settings_inner(): void {
-		if ( isset( $_GET['bouncer_brain_done'] ) && '1' === $_GET['bouncer_brain_done'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			$n = get_transient( 'bouncer_brain_notice_' . get_current_user_id() );
-			delete_transient( 'bouncer_brain_notice_' . get_current_user_id() );
-			if ( is_array( $n ) && isset( $n['message'] ) ) {
-				$class = ! empty( $n['success'] ) ? 'notice-success' : 'notice-error';
-				printf(
-					'<div class="notice %1$s is-dismissible"><p>%2$s</p></div>',
-					esc_attr( $class ),
-					esc_html( (string) $n['message'] )
-				);
-			}
-		}
-
-		$brain_managed_path = Bouncer_Brain_Model::get_managed_model_path();
-		$brain_url_config   = Bouncer_Brain_Model::get_model_url() !== '';
-		$saved_brain_path   = (string) get_option( Bouncer_Brain_Model::OPTION_PATH, '' );
-		$readable_brain     = '';
-		if ( '' !== $saved_brain_path && is_readable( $saved_brain_path ) ) {
-			$readable_brain = wp_normalize_path( $saved_brain_path );
-		} elseif ( '' !== $brain_managed_path && is_readable( $brain_managed_path ) ) {
-			$readable_brain = $brain_managed_path;
-		}
-		$brain_file_ok    = '' !== $readable_brain;
-		$brain_actions_base = add_query_arg(
-			array(
-				'page' => 'bouncer',
-				'tab'  => 'settings',
-			),
-			admin_url( 'tools.php' )
-		);
-		$brain_download_url = wp_nonce_url(
-			add_query_arg( 'bouncer_brain_download', '1', $brain_actions_base ),
-			'bouncer_brain_model_download'
-		);
-		$brain_replace_url  = wp_nonce_url(
-			add_query_arg(
-				array(
-					'bouncer_brain_download' => '1',
-					'bouncer_brain_force'    => '1',
-				),
-				$brain_actions_base
-			),
-			'bouncer_brain_model_download'
-		);
-		$brain_remove_url   = wp_nonce_url(
-			add_query_arg( 'bouncer_brain_remove', '1', $brain_actions_base ),
-			'bouncer_brain_model_remove'
-		);
 		?>
 			<h2 class="screen-reader-text"><?php esc_html_e( 'Settings', 'bouncer' ); ?></h2>
 
@@ -1103,61 +866,18 @@ class Bouncer_Admin {
 						<td><label><input type="checkbox" name="bouncer_file_integrity" value="1" <?php checked( get_option( 'bouncer_file_integrity' ) ); ?> /> <?php esc_html_e( 'Monitor plugin files for unauthorized changes', 'bouncer' ); ?></label></td>
 					</tr>
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Vulnerability database', 'bouncer' ); ?></th>
-						<td>
-							<label><input type="checkbox" name="bouncer_advisory_lookup" value="1" <?php checked( get_option( 'bouncer_advisory_lookup' ) ); ?> /> <?php esc_html_e( 'Look up known vulnerabilities (contacts wpvulnerability.net for plugin slugs)', 'bouncer' ); ?></label>
-							<p class="description"><?php esc_html_e( 'Off by default to avoid external requests until you opt in.', 'bouncer' ); ?></p>
-						</td>
-					</tr>
-					<tr>
 						<th scope="row"><?php esc_html_e( 'REST monitoring', 'bouncer' ); ?></th>
 						<td><label><input type="checkbox" name="bouncer_rest_monitoring" value="1" <?php checked( get_option( 'bouncer_rest_monitoring', true ) ); ?> /> <?php esc_html_e( 'Log unauthenticated POST/PUT/PATCH/DELETE REST requests', 'bouncer' ); ?></label></td>
 					</tr>
 				</table>
 
 				<h2><?php esc_html_e( 'Smarter summaries (optional)', 'bouncer' ); ?></h2>
-				<p class="description"><?php esc_html_e( 'Quick Look always runs in the background. Below, turn on extras only if you want them.', 'bouncer' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Quick Look always runs on your server. Turn on Deep Dive for Claude (Anthropic) when you add a key.', 'bouncer' ); ?></p>
 				<table class="form-table">
 					<tr>
-						<th scope="row"><?php esc_html_e( 'Bouncer Brain', 'bouncer' ); ?></th>
+						<th scope="row"><?php esc_html_e( 'Deep Dive (Claude)', 'bouncer' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="bouncer_local_brain_enabled" value="1" <?php checked( get_option( 'bouncer_local_brain_enabled' ) ); ?> /> <?php esc_html_e( 'Try a second opinion on my server (no cloud bill; one-time helper file download when available)', 'bouncer' ); ?></label>
-							<p class="description"><?php esc_html_e( 'When your host can’t run it, we’ll say so nicely — Quick Look still has your back.', 'bouncer' ); ?></p>
-
-							<div class="bouncer-brain-download-panel">
-								<p class="description"><strong><?php esc_html_e( 'Helper file (optional, large)', 'bouncer' ); ?></strong></p>
-								<?php if ( $brain_file_ok ) : ?>
-									<p class="description">
-										<?php esc_html_e( 'Installed at:', 'bouncer' ); ?>
-										<code><?php echo esc_html( $readable_brain ); ?></code>
-									</p>
-								<?php elseif ( $brain_url_config ) : ?>
-									<p class="description"><?php esc_html_e( 'Grab the on-server helper file into your uploads folder. One download per site; keep an eye on disk space.', 'bouncer' ); ?></p>
-								<?php else : ?>
-									<p class="description"><?php esc_html_e( 'When we publish the helper file for this version, a download button will show here. You can also paste a path under Troubleshooting if your host gave you a file.', 'bouncer' ); ?></p>
-								<?php endif; ?>
-
-								<?php if ( $brain_url_config && ! $brain_file_ok ) : ?>
-									<p>
-										<a class="button button-secondary" href="<?php echo esc_url( $brain_download_url ); ?>"><?php esc_html_e( 'Download helper file', 'bouncer' ); ?></a>
-									</p>
-								<?php endif; ?>
-
-								<?php if ( $brain_url_config && $brain_file_ok ) : ?>
-									<p>
-										<a class="button button-secondary" href="<?php echo esc_url( $brain_replace_url ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Replace the existing helper file on this server?', 'bouncer' ) ); ?>');"><?php esc_html_e( 'Download again (replace)', 'bouncer' ); ?></a>
-										<?php if ( Bouncer_Brain_Model::is_managed_path( $saved_brain_path ) && is_readable( $saved_brain_path ) ) : ?>
-											<a class="button button-link-delete" style="margin-left:8px;" href="<?php echo esc_url( $brain_remove_url ); ?>" onclick="return confirm('<?php echo esc_js( __( 'Remove the downloaded helper file from this server?', 'bouncer' ) ); ?>');"><?php esc_html_e( 'Remove downloaded file', 'bouncer' ); ?></a>
-										<?php endif; ?>
-									</p>
-								<?php endif; ?>
-							</div>
-						</td>
-					</tr>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Deep Dive', 'bouncer' ); ?></th>
-						<td>
-							<label><input type="checkbox" name="bouncer_ai_scanning" value="1" <?php checked( get_option( 'bouncer_ai_scanning' ) ); ?> /> <?php esc_html_e( 'Explain plugin updates in plain English (uses a trusted AI when you add a key)', 'bouncer' ); ?></label>
+							<label><input type="checkbox" name="bouncer_ai_scanning" value="1" <?php checked( get_option( 'bouncer_ai_scanning' ) ); ?> /> <?php esc_html_e( 'Explain plugin updates in plain English via Anthropic Claude when you add a key', 'bouncer' ); ?></label>
 							<p class="description">
 								<?php
 								echo wp_kses_post(
@@ -1176,7 +896,7 @@ class Bouncer_Admin {
 						<th scope="row"><?php esc_html_e( 'Key status', 'bouncer' ); ?></th>
 						<td>
 							<?php
-							$scanner = $this->bouncer->ai_scanner;
+							$scanner = $this->bouncer->get_ai_scanner_if_available();
 							if ( ! $scanner ) {
 								$scanner = new Bouncer_Ai_Scanner( $this->bouncer->logger, $this->bouncer->manifest );
 							}
@@ -1238,14 +958,6 @@ class Bouncer_Admin {
 						</td>
 					</tr>
 					<?php endif; ?>
-					<tr>
-						<th scope="row"><?php esc_html_e( 'Troubleshooting', 'bouncer' ); ?></th>
-						<td>
-							<label for="bouncer-local-brain-model-path"><?php esc_html_e( 'On-server model file path (advanced)', 'bouncer' ); ?></label><br />
-							<input type="text" name="bouncer_local_brain_model_path" id="bouncer-local-brain-model-path" class="large-text code" value="<?php echo esc_attr( get_option( 'bouncer_local_brain_model_path', '' ) ); ?>" autocomplete="off" placeholder="/path/on/server/model.onnx" />
-							<p class="description"><?php esc_html_e( 'Leave blank unless you’re testing Bouncer Brain with a model file. Must be an absolute path on this server.', 'bouncer' ); ?></p>
-						</td>
-					</tr>
 				</table>
 
 				<h2><?php esc_html_e( 'Notifications', 'bouncer' ); ?></h2>
@@ -1419,13 +1131,7 @@ class Bouncer_Admin {
 		}
 
 		if ( $this->bouncer->get_setting( 'ai_scanning' ) ) {
-			// Check if AI scanning has a working key from any source.
-			$scanner = $this->bouncer->ai_scanner;
-			if ( ! $scanner ) {
-				$scanner = new Bouncer_Ai_Scanner( $this->bouncer->logger, $this->bouncer->manifest );
-			}
-
-			if ( ! $scanner->is_available() ) {
+			if ( ! $this->bouncer->get_ai_scanner_if_available() ) {
 				echo '<div class="notice notice-warning"><p>';
 				if ( function_exists( 'wp_is_connector_registered' ) ) {
 					printf(
@@ -1479,12 +1185,12 @@ class Bouncer_Admin {
 		}
 
 		$manifest = $this->bouncer->manifest->generate_for_plugin( $plugin_slug );
-		Bouncer_AI_Experience::maybe_run_local_brain( $plugin_slug, $manifest );
 
-		// Run Deep Dive (Claude) if available.
-		$ai_result = null;
-		if ( $this->bouncer->ai_scanner instanceof Bouncer_Ai_Scanner ) {
-			$ai_result = $this->bouncer->ai_scanner->scan_plugin( $plugin_slug );
+		// Run Deep Dive (Claude) if available (resolve lazily — Connectors load after Bouncer’s early bootstrap).
+		$ai_result      = null;
+		$ai_scanner     = $this->bouncer->get_ai_scanner_if_available();
+		if ( $ai_scanner ) {
+			$ai_result = $ai_scanner->scan_plugin( $plugin_slug );
 		}
 
 		wp_send_json_success(
@@ -1511,7 +1217,6 @@ class Bouncer_Admin {
 		}
 
 		$manifest = $this->bouncer->manifest->generate_for_plugin( $plugin_slug );
-		Bouncer_AI_Experience::maybe_run_local_brain( $plugin_slug, $manifest );
 		wp_send_json_success( array( 'manifest' => $manifest ) );
 	}
 

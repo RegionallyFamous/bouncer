@@ -3,7 +3,7 @@
  * Plugin Name: Bouncer
  * Plugin URI: https://regionallyfamous.com/bouncer
  * Description: A plugin behavior firewall for WordPress. Monitors what your plugins actually do — database queries, outbound HTTP, hook registrations, file changes — and uses AI to catch threats before they cause damage.
- * Version: 1.0.1
+ * Version: 1.0.3
  * Requires at least: 6.4
  * Requires PHP: 8.1
  * Author: Regionally Famous
@@ -29,24 +29,13 @@ if ( version_compare( PHP_VERSION, '8.1', '<' ) ) {
 	return;
 }
 
-define( 'BOUNCER_VERSION', '1.0.1' );
+define( 'BOUNCER_VERSION', '1.0.3' );
 define( 'BOUNCER_PLUGIN_FILE', __FILE__ );
 define( 'BOUNCER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BOUNCER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'BOUNCER_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 /** Capability for Bouncer admin, REST, and AJAX (mirrors core-style dedicated caps). */
 define( 'BOUNCER_CAP', 'manage_bouncer' );
-
-/**
- * Optional separate download for Bouncer Brain (large file; not in the plugin zip).
- * Leave URL empty until a release artifact is published; override via wp-config or a small plugin using filters.
- */
-if ( ! defined( 'BOUNCER_BRAIN_MODEL_URL' ) ) {
-	define( 'BOUNCER_BRAIN_MODEL_URL', '' );
-}
-if ( ! defined( 'BOUNCER_BRAIN_MODEL_SHA256' ) ) {
-	define( 'BOUNCER_BRAIN_MODEL_SHA256', '' );
-}
 
 require_once BOUNCER_PLUGIN_DIR . 'includes/bouncer-pending-violations-lock.php';
 
@@ -256,5 +245,4 @@ add_action( 'plugins_loaded', 'bouncer_init', 5 );
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	require_once BOUNCER_PLUGIN_DIR . 'includes/class-bouncer-cli.php';
 	WP_CLI::add_command( 'bouncer', 'Bouncer_CLI_Command' );
-	WP_CLI::add_command( 'bouncer brain', 'Bouncer_CLI_Brain_Command' );
 }

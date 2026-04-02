@@ -4,7 +4,7 @@ Tags: security, firewall, plugin-monitor, ai-security, behavior-monitoring
 Requires at least: 6.4
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.0.1
+Stable tag: 1.0.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -47,18 +47,12 @@ With an Anthropic API key, Bouncer uses Claude to:
 
 Bouncer never sends your source code off-site. It sends structural fingerprints — function call graphs, hook registrations, API usage patterns — that cannot be reverse-engineered into source code.
 
-= Bouncer Brain (optional, on your server) =
-
-The plugin zip does **not** include a large on-server helper file. If you turn on Bouncer Brain and your host supports it, you can install that file from **Tools → Bouncer → Settings** (when a download URL is configured for your version) or with WP-CLI: `wp bouncer brain download --user=1`. The file is stored under `wp-content/uploads/bouncer/` on your site. Uninstalling Bouncer removes that folder.
-
 = Third-party services (WordPress.org Guideline 6) =
 
 **Anthropic (Claude API)** — When you enable AI scanning and configure an API key (via WordPress 7.0+ Connectors, environment variable, PHP constant, or Bouncer’s fallback setting), Bouncer sends **only** structural fingerprints to Anthropic’s API for analysis. By enabling this feature you direct Bouncer to contact Anthropic on your behalf.
 
 * Commercial Terms: https://www.anthropic.com/legal/commercial-terms
 * Privacy Policy: https://www.anthropic.com/legal/privacy
-
-**WPVulnerability** — If you opt in under **Settings → Known vulnerabilities**, Bouncer requests public vulnerability metadata from the WPVulnerability project (wpvulnerability.net) for installed plugin slugs. No site content or credentials are sent.
 
 = Monitor vs. Enforce =
 
@@ -94,13 +88,9 @@ Bouncer detects existing db.php files and will not overwrite them. Database quer
 
 No. Bouncer sends structural fingerprints — function names, call patterns, hook registrations, API usage — not raw source code. AI scanning is off by default; turning it on and saving an API key means you choose to use Anthropic’s service under their Commercial Terms (https://www.anthropic.com/legal/commercial-terms) and Privacy Policy (https://www.anthropic.com/legal/privacy).
 
-= Why isn’t the Bouncer Brain file in the plugin? =
+= Why did my webhook stop working after an update? =
 
-It can be very large. Bouncer ships small from WordPress.org; the Brain helper is a separate, optional download into your uploads directory when you choose to use that feature (see **Bouncer Brain** under Tools → Bouncer → Settings, or WP-CLI `wp bouncer brain download`).
-
-= Why did my webhook or Brain download stop working after an update? =
-
-Bouncer blocks outbound requests to link-local and private IP ranges (SSRF protection) for the optional Brain model download and for webhooks. Use a public hostname that resolves to a routable address, or ask a developer to use the `bouncer_webhook_skip_url_safety` / `bouncer_brain_download_skip_url_safety` filters in controlled environments.
+Bouncer blocks outbound requests to link-local and private IP ranges (SSRF protection) for webhooks. Use a public hostname that resolves to a routable address, or ask a developer to use the `bouncer_webhook_skip_url_safety` filter in controlled environments.
 
 = REST API scan throttling =
 
@@ -120,6 +110,12 @@ In Monitor mode, Bouncer only observes and logs. It never blocks or modifies any
 
 == Changelog ==
 
+= 1.0.3 =
+* Remove Bouncer Brain, local model download, and related settings; optional AI analysis is **Deep Dive** (Anthropic Claude) only.
+
+= 1.0.2 =
+* Remove optional WPVulnerability.net / “Vulnerability database” integration (settings, dashboard, and API client).
+
 = 1.0.1 =
 * Fix: stop redirect loop on **Tools → Bouncer** (`ERR_TOO_MANY_REDIRECTS`). The legacy submenu redirect no longer treats `page=bouncer` as an old slug to rewrite.
 
@@ -129,10 +125,10 @@ In Monitor mode, Bouncer only observes and logs. It never blocks or modifies any
 * Outbound HTTP monitoring with per-plugin manifest allowlists; Monitor vs Enforce modes.
 * Hook registration auditing (optional mu-loaded hook snapshots when auditing is enabled).
 * File integrity monitoring with SHA-256 checksums and WordPress.org checksum verification.
-* Per-plugin capability manifests, Quick Look / Bouncer Brain / Deep Dive UX; optional Claude (Anthropic) analysis with Connectors API and fallbacks.
-* Optional WPVulnerability.net advisory lookup (off by default); REST unauthenticated write logging; email digests and HMAC-signed webhooks.
-* Optional Bouncer Brain helper file: separate download (Settings or `wp bouncer brain download`); SSRF-safe URL checks for webhooks and downloads.
-* WP-CLI: `status`, `log`, `manifest`, `config export|import`, `brain download`.
+* Per-plugin capability manifests, Quick Look and Deep Dive (Claude) UX; optional Anthropic analysis with Connectors API and fallbacks.
+* REST unauthenticated write logging; email digests and HMAC-signed webhooks.
+* SSRF-safe URL checks for webhooks.
+* WP-CLI: `status`, `log`, `manifest`, `config export|import`.
 * REST API for events, manifests, and scans (rate-limited; `run_ai` to skip Claude).
 * Filesystem API for plugin-owned writes; PHPCS WordPress ruleset; Site Health and Abilities API integration when supported.
 * Playground blueprint asset; block editor pre-publish stub.

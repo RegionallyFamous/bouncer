@@ -8,7 +8,7 @@
  * Installed/removed automatically by the Bouncer plugin. Do not edit.
  *
  * @package Bouncer
- * @version 1.0.1
+ * @version 1.0.3
  */
 
 defined( 'ABSPATH' ) || exit;
