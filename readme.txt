@@ -4,7 +4,7 @@ Tags: security, firewall, plugin-monitor, ai-security, behavior-monitoring
 Requires at least: 7.0
 Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -110,6 +110,9 @@ In Monitor mode, Bouncer only observes and logs. It never blocks or modifies any
 * **Conflicts:** Another plugin’s `wp-content/db.php` is detected and left in place; query attribution stays off until that conflict is resolved.
 
 == Changelog ==
+
+= 1.0.7 =
+* Fix: accept **WordPress 7.0 pre-releases** (beta, RC, etc.) as meeting the 7.0 requirement. Plain `version_compare( $wp_version, '7.0' )` treats `7.0-RC2` as older than `7.0`; Bouncer now uses `is_wp_version_compatible( '7.0' )` with a safe fallback.
 
 = 1.0.6 =
 * Dev: satisfy ESLint `jsdoc/require-jsdoc` and `jsdoc/tag-lines` in `bouncer-admin.js` (CI `npm run lint:js`).

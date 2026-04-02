@@ -3,7 +3,7 @@
  * Plugin Name: Bouncer
  * Plugin URI: https://regionallyfamous.com/bouncer
  * Description: A plugin behavior firewall for WordPress. Monitors what your plugins actually do — database queries, outbound HTTP, hook registrations, file changes — and uses AI to catch threats before they cause damage.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Requires at least: 7.0
  * Requires PHP: 8.1
  * Author: Regionally Famous
@@ -29,8 +29,32 @@ if ( version_compare( PHP_VERSION, '8.1', '<' ) ) {
 	return;
 }
 
-global $wp_version;
-if ( ! isset( $wp_version ) || version_compare( $wp_version, '7.0', '<' ) ) {
+/**
+ * Whether the site meets Bouncer’s WordPress minimum (7.0), including 7.0 betas/RCs.
+ *
+ * Raw `version_compare( $wp_version, '7.0' )` treats `7.0-RC2` as below `7.0`; core’s
+ * `is_wp_version_compatible()` handles pre-releases correctly.
+ *
+ * @return bool
+ */
+function bouncer_meets_minimum_wp(): bool {
+	if ( function_exists( 'is_wp_version_compatible' ) ) {
+		return is_wp_version_compatible( '7.0' );
+	}
+
+	global $wp_version;
+	if ( ! isset( $wp_version ) || ! is_string( $wp_version ) ) {
+		return false;
+	}
+
+	if ( ! preg_match( '/^(\d+\.\d+(?:\.\d+)?)/', $wp_version, $matches ) ) {
+		return false;
+	}
+
+	return version_compare( $matches[1], '7.0', '>=' );
+}
+
+if ( ! bouncer_meets_minimum_wp() ) {
 	if ( ! defined( 'BOUNCER_PLUGIN_FILE' ) ) {
 		define( 'BOUNCER_PLUGIN_FILE', __FILE__ );
 	}
@@ -40,7 +64,7 @@ if ( ! isset( $wp_version ) || version_compare( $wp_version, '7.0', '<' ) ) {
 	return;
 }
 
-define( 'BOUNCER_VERSION', '1.0.6' );
+define( 'BOUNCER_VERSION', '1.0.7' );
 define( 'BOUNCER_PLUGIN_FILE', __FILE__ );
 define( 'BOUNCER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BOUNCER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );

@@ -40,7 +40,7 @@ Option A — WP-CLI (install package once):
 Option B — zip from the parent of the plugin folder (recommended):
 
   cd /path/to/parent-of-bouncer
-  zip -r bouncer-1.0.6.zip bouncer \
+  zip -r bouncer-1.0.7.zip bouncer \
     -x "bouncer/.git/*" \
     -x "bouncer/.github/*" \
     -x "bouncer/.gitignore" \
@@ -67,10 +67,10 @@ Do **not** zip from inside the repo root with `zip ... .` — that produces a fl
 
 Git tag
 -------
-  git tag -a v1.0.6 -m "Bouncer 1.0.6"
-  git push origin v1.0.6
+  git tag -a v1.0.7 -m "Bouncer 1.0.7"
+  git push origin v1.0.7
 
 WordPress.org SVN (if applicable)
 ---------------------------------
-* Copy plugin files into /trunk, sync tags/1.0.6 from that tree
+* Copy plugin files into /trunk, sync tags/1.0.7 from that tree
 * readme.txt Stable tag must match BOUNCER_VERSION
