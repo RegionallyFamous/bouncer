@@ -8,16 +8,29 @@
 
 	const S = () => (typeof bouncerAdmin !== 'undefined' && bouncerAdmin.strings) || {};
 
+	/**
+	 * @param {number} done  Plugins processed so far.
+	 * @param {number} total Total plugins to scan.
+	 * @returns {string} Localized progress string.
+	 */
 	function formatScanProgress(done, total) {
 		const tpl = S().scanAllProgress || 'Scanned %1$d of %2$d…';
 		return tpl.replace(/%1\$d/g, String(done)).replace(/%2\$d/g, String(total));
 	}
 
+	/**
+	 * @param {number} n Remaining plugin count.
+	 * @returns {string} Button label for resuming a batch scan.
+	 */
 	function formatContinueLeft(n) {
 		const tpl = S().continueScanLeft || 'Continue scan (%d left)';
 		return tpl.replace('%d', String(n));
 	}
 
+	/**
+	 * @param {{ data?: unknown }} [response] WordPress admin-ajax JSON body.
+	 * @returns {string} User-visible error message.
+	 */
 	function extractErrorMessage(response) {
 		const d = response && response.data;
 		if (d && typeof d === 'object' && d.message) {
@@ -141,6 +154,9 @@
 		$btn.prop('disabled', true);
 		$status.text(S().scanAllRunning || '…');
 
+		/**
+		 * Clear batch state, show completion, then reload the page.
+		 */
 		function finishOk() {
 			$btn.removeData('pendingSlugs').removeData('scanDoneSoFar');
 			$status.text(S().scanAllDone || '…');
@@ -149,6 +165,11 @@
 			}, 800);
 		}
 
+		/**
+		 * POST the next chunk of slugs; recurse or finish when the queue is empty.
+		 * @param {string[]} remaining Slugs not yet submitted this run.
+		 * @param {number}   done     Count already processed (for progress text).
+		 */
 		function runNext(remaining, done) {
 			if (remaining.length < 1) {
 				finishOk();

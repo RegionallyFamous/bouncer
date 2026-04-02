@@ -3,7 +3,7 @@
  * Plugin Name: Bouncer
  * Plugin URI: https://regionallyfamous.com/bouncer
  * Description: A plugin behavior firewall for WordPress. Monitors what your plugins actually do — database queries, outbound HTTP, hook registrations, file changes — and uses AI to catch threats before they cause damage.
- * Version: 1.0.5
+ * Version: 1.0.6
  * Requires at least: 7.0
  * Requires PHP: 8.1
  * Author: Regionally Famous
@@ -40,7 +40,7 @@ if ( ! isset( $wp_version ) || version_compare( $wp_version, '7.0', '<' ) ) {
 	return;
 }
 
-define( 'BOUNCER_VERSION', '1.0.5' );
+define( 'BOUNCER_VERSION', '1.0.6' );
 define( 'BOUNCER_PLUGIN_FILE', __FILE__ );
 define( 'BOUNCER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'BOUNCER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
