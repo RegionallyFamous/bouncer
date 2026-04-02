@@ -1,10 +1,10 @@
 === Bouncer ===
 Contributors: regionallyfamous
 Tags: security, firewall, plugin-monitor, ai-security, behavior-monitoring
-Requires at least: 6.4
-Tested up to: 6.9
+Requires at least: 7.0
+Tested up to: 7.0
 Requires PHP: 8.1
-Stable tag: 1.0.3
+Stable tag: 1.0.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -49,7 +49,7 @@ Bouncer never sends your source code off-site. It sends structural fingerprints 
 
 = Third-party services (WordPress.org Guideline 6) =
 
-**Anthropic (Claude API)** — When you enable AI scanning and configure an API key (via WordPress 7.0+ Connectors, environment variable, PHP constant, or Bouncer’s fallback setting), Bouncer sends **only** structural fingerprints to Anthropic’s API for analysis. By enabling this feature you direct Bouncer to contact Anthropic on your behalf.
+**Anthropic (Claude API)** — When you enable AI scanning and configure an API key via **Settings → Connectors**, the `ANTHROPIC_API_KEY` environment variable, or the `ANTHROPIC_API_KEY` PHP constant (same priority WordPress uses for Connectors), Bouncer sends **only** structural fingerprints to Anthropic’s API for analysis. By enabling this feature you direct Bouncer to contact Anthropic on your behalf.
 
 * Commercial Terms: https://www.anthropic.com/legal/commercial-terms
 * Privacy Policy: https://www.anthropic.com/legal/privacy
@@ -70,9 +70,9 @@ Bouncer never sends your source code off-site. It sends structural fingerprints 
 
 = Requirements =
 
-* WordPress 6.4 or later
+* WordPress 7.0 or later
 * PHP 8.1 or later
-* For AI scanning: An Anthropic API key (get one at https://console.anthropic.com/) and acceptance of Anthropic’s terms (see “Third-party services” above).
+* For AI scanning: An Anthropic API key in **Settings → Connectors** (or `ANTHROPIC_API_KEY` via environment/constant), from https://console.anthropic.com/, and acceptance of Anthropic’s terms (see “Third-party services” above).
 
 == Frequently Asked Questions ==
 
@@ -86,7 +86,7 @@ Bouncer detects existing db.php files and will not overwrite them. Database quer
 
 = Does Bouncer send my code to Anthropic? =
 
-No. Bouncer sends structural fingerprints — function names, call patterns, hook registrations, API usage — not raw source code. AI scanning is off by default; turning it on and saving an API key means you choose to use Anthropic’s service under their Commercial Terms (https://www.anthropic.com/legal/commercial-terms) and Privacy Policy (https://www.anthropic.com/legal/privacy).
+No. Bouncer sends structural fingerprints — function names, call patterns, hook registrations, API usage — not raw source code. AI scanning is off by default; turning it on and configuring a key in **Settings → Connectors** (or via environment/constant) means you choose to use Anthropic’s service under their Commercial Terms (https://www.anthropic.com/legal/commercial-terms) and Privacy Policy (https://www.anthropic.com/legal/privacy).
 
 = Why did my webhook stop working after an update? =
 
@@ -102,6 +102,7 @@ In Monitor mode, Bouncer only observes and logs. It never blocks or modifies any
 
 = Troubleshooting activation or “fatal error” messages =
 
+* **WordPress version:** Bouncer requires **WordPress 7.0 or newer** (Connectors API). Older WordPress versions cannot activate or load the plugin.
 * **PHP version:** Bouncer requires **PHP 8.1 or newer**. On older PHP, activation is blocked with an on-screen message instead of a parse error from the main plugin code.
 * **Debug log:** Enable `WP_DEBUG` and `WP_DEBUG_LOG` in `wp-config.php`, try again, and read `wp-content/debug.log` for the exact error.
 * **Database:** The MySQL user must be allowed to create tables. If creation fails, check the log and your host’s database permissions.
@@ -109,6 +110,16 @@ In Monitor mode, Bouncer only observes and logs. It never blocks or modifies any
 * **Conflicts:** Another plugin’s `wp-content/db.php` is detected and left in place; query attribution stays off until that conflict is resolved.
 
 == Changelog ==
+
+= 1.0.5 =
+* Manifests: **Scan all installed plugins** (batched AJAX, one rate-limit slot per batch) with resume after rate limit.
+* Manifests list is built from **actually installed** plugins; REST scan/manifest routes and AJAX validate slugs against that registry (supports single-file plugins and broader slug characters).
+* Admin copy on Dashboard, Manifests, and single-plugin views reflects **Deep Dive** setting, API key availability, and related state instead of static text.
+* Single-plugin “first scan” uses the same path as rescan (Quick Look plus Deep Dive when available).
+
+= 1.0.4 =
+* Require **WordPress 7.0+**. Deep Dive keys use **Settings → Connectors** only (plus `ANTHROPIC_API_KEY` env/constant per core); removed the Bouncer settings fallback field.
+* Fix: resolve the Anthropic key from the Connectors database option (`connectors_ai_anthropic_api_key`) even when connector metadata is incomplete, and refresh the AI scanner after `wp_connectors_init`.
 
 = 1.0.3 =
 * Remove Bouncer Brain, local model download, and related settings; optional AI analysis is **Deep Dive** (Anthropic Claude) only.

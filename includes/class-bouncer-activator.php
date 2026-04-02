@@ -33,7 +33,6 @@ class Bouncer_Activator {
 			'hook_auditing'       => true,
 			'file_integrity'      => true,
 			'ai_scanning'         => false,
-			'ai_api_key'          => '',
 			'sampling_rate'       => 100,
 			'log_retention_days'  => 30,
 			'community_telemetry' => false,

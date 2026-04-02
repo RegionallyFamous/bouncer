@@ -11,7 +11,7 @@
 	<arg name="cache" value=".phpcs-cache"/>
 	<arg value="ps"/>
 
-	<config name="minimum_supported_wp_version" value="6.4"/>
+	<config name="minimum_supported_wp_version" value="7.0"/>
 	<config name="testVersion" value="8.1-"/>
 
 	<!-- Core+Security pulls strict DB/ternary sniffs; keep scan focused on submission-critical issues. -->

@@ -1,9 +1,10 @@
 <?php
 /**
- * AI-powered plugin scanner using Claude via WP 7.0 Connectors API.
+ * AI-powered plugin scanner using Claude via WordPress 7.0 Connectors API.
  *
- * Uses the WordPress 7.0 Connectors API for API key management when
- * available, falling back to Bouncer's own setting for WP < 7.0.
+ * Resolves the Anthropic API key using the same priority as core Connectors:
+ * environment variable, PHP constant, then the connector’s database option
+ * (see https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/).
  *
  * @package Bouncer
  */
@@ -33,28 +34,19 @@ class Bouncer_Ai_Scanner {
 	/**
 	 * Resolved API key (cached per request).
 	 *
-	 * @var string|null
+	 * @var string|null Null = not resolved yet; string (maybe '') = resolved.
 	 */
 	private ?string $resolved_api_key = null;
 
 	/**
 	 * Constructor.
 	 *
-	 * No longer requires an API key parameter — key resolution is handled
-	 * internally via the WP 7.0 Connectors API or Bouncer settings fallback.
-	 *
 	 * @param Bouncer_Logger   $logger   Logger instance.
 	 * @param Bouncer_Manifest $manifest Manifest manager.
-	 * @param string           $api_key  Legacy API key (used as fallback for WP < 7.0).
 	 */
-	public function __construct( Bouncer_Logger $logger, Bouncer_Manifest $manifest, string $api_key = '' ) {
+	public function __construct( Bouncer_Logger $logger, Bouncer_Manifest $manifest ) {
 		$this->logger   = $logger;
 		$this->manifest = $manifest;
-
-		// Legacy key is used as lowest-priority fallback.
-		if ( '' !== $api_key ) {
-			$this->resolved_api_key = $api_key;
-		}
 	}
 
 	public function init(): void {}
@@ -69,111 +61,99 @@ class Bouncer_Ai_Scanner {
 	}
 
 	/**
-	 * Resolve the API key using the WP 7.0 Connectors API priority chain,
-	 * falling back to Bouncer's own setting for older WordPress versions.
+	 * Default DB option name for the Anthropic API key (Connectors pattern).
 	 *
-	 * Priority:
-	 * 1. WP 7.0 Connectors API (which itself checks env → constant → DB)
-	 * 2. ANTHROPIC_API_KEY environment variable (direct check)
-	 * 3. ANTHROPIC_API_KEY PHP constant (direct check)
-	 * 4. Bouncer's own bouncer_ai_api_key setting (legacy fallback)
+	 * @return string
+	 */
+	private function default_connector_option_name(): string {
+		$id = str_replace( '-', '_', self::CONNECTOR_ID );
+
+		return 'connectors_ai_' . $id . '_api_key';
+	}
+
+	/**
+	 * Option name for the key stored via Settings → Connectors (from registry or default).
+	 *
+	 * @return string
+	 */
+	private function connector_database_option_name(): string {
+		if ( function_exists( 'wp_get_connector' ) ) {
+			$connector = wp_get_connector( self::CONNECTOR_ID );
+			if ( is_array( $connector ) && ! empty( $connector['authentication']['setting_name'] ) ) {
+				return (string) $connector['authentication']['setting_name'];
+			}
+		}
+
+		return $this->default_connector_option_name();
+	}
+
+	/**
+	 * Env / PHP constant name for the provider (e.g. ANTHROPIC_API_KEY).
+	 *
+	 * @return string
+	 */
+	private function provider_secret_constant_name(): string {
+		return strtoupper( str_replace( '-', '_', self::CONNECTOR_ID ) ) . '_API_KEY';
+	}
+
+	/**
+	 * Resolve the API key (Connectors-compatible priority).
 	 *
 	 * @return string API key or empty string.
 	 */
 	public function get_api_key(): string {
-		if ( null !== $this->resolved_api_key && '' !== $this->resolved_api_key ) {
+		if ( null !== $this->resolved_api_key ) {
 			return $this->resolved_api_key;
 		}
 
-		// Method 1: WP 7.0+ Connectors API.
-		if ( function_exists( 'wp_get_connector' ) ) {
-			$connector = wp_get_connector( self::CONNECTOR_ID );
-			if ( $connector && ! empty( $connector['authentication'] ) ) {
-				$setting_name = $connector['authentication']['setting_name'] ?? '';
+		$env_key = $this->provider_secret_constant_name();
 
-				// The Connectors API checks env → constant → DB internally.
-				// We check the same chain the connector system uses.
-				$provider_id = strtoupper( self::CONNECTOR_ID );
-				$env_key     = $provider_id . '_API_KEY';
-
-				// Environment variable.
-				$env_val = getenv( $env_key );
-				if ( false !== $env_val && '' !== $env_val ) {
-					$this->resolved_api_key = $env_val;
-					return $this->resolved_api_key;
-				}
-
-				// PHP constant.
-				if ( defined( $env_key ) ) {
-					$this->resolved_api_key = constant( $env_key );
-					return $this->resolved_api_key;
-				}
-
-				// Database setting (managed by Settings > Connectors screen).
-				if ( '' !== $setting_name ) {
-					$db_val = get_option( $setting_name, '' );
-					if ( '' !== $db_val ) {
-						$this->resolved_api_key = $db_val;
-						return $this->resolved_api_key;
-					}
-				}
-			}
-		}
-
-		// Method 2: Direct env/constant check (for WP < 7.0 or if connector not registered).
-		$env_val = getenv( 'ANTHROPIC_API_KEY' );
+		$env_val = getenv( $env_key );
 		if ( false !== $env_val && '' !== $env_val ) {
 			$this->resolved_api_key = $env_val;
+
 			return $this->resolved_api_key;
 		}
 
-		if ( defined( 'ANTHROPIC_API_KEY' ) ) {
-			$this->resolved_api_key = ANTHROPIC_API_KEY;
+		if ( defined( $env_key ) ) {
+			$this->resolved_api_key = (string) constant( $env_key );
+
 			return $this->resolved_api_key;
 		}
 
-		// Method 3: Bouncer's own legacy setting.
-		$bouncer_key = get_option( 'bouncer_ai_api_key', '' );
-		if ( '' !== $bouncer_key ) {
-			$this->resolved_api_key = $bouncer_key;
+		$db_key = get_option( $this->connector_database_option_name(), '' );
+		if ( is_string( $db_key ) && '' !== $db_key ) {
+			$this->resolved_api_key = $db_key;
+
 			return $this->resolved_api_key;
 		}
 
 		$this->resolved_api_key = '';
+
 		return '';
 	}
 
 	/**
 	 * Get the source of the current API key (for admin display).
 	 *
-	 * @return string 'connector', 'environment', 'constant', 'bouncer_setting', or 'none'.
+	 * @return string 'connector_env'|'connector_constant'|'connector_db'|'none'.
 	 */
 	public function get_api_key_source(): string {
-		if ( function_exists( 'wp_is_connector_registered' ) && wp_is_connector_registered( self::CONNECTOR_ID ) ) {
-			$connector = wp_get_connector( self::CONNECTOR_ID );
-			$setting   = $connector['authentication']['setting_name'] ?? '';
+		$env_key = $this->provider_secret_constant_name();
 
-			$env_key = strtoupper( self::CONNECTOR_ID ) . '_API_KEY';
-
-			if ( false !== getenv( $env_key ) && '' !== getenv( $env_key ) ) {
-				return 'connector_env';
-			}
-			if ( defined( $env_key ) ) {
-				return 'connector_constant';
-			}
-			if ( '' !== $setting && '' !== get_option( $setting, '' ) ) {
-				return 'connector_db';
-			}
+		if ( false !== getenv( $env_key ) && '' !== getenv( $env_key ) ) {
+			return 'connector_env';
 		}
 
-		if ( false !== getenv( 'ANTHROPIC_API_KEY' ) && '' !== getenv( 'ANTHROPIC_API_KEY' ) ) {
-			return 'environment';
+		if ( defined( $env_key ) ) {
+			return 'connector_constant';
 		}
-		if ( defined( 'ANTHROPIC_API_KEY' ) ) {
-			return 'constant';
-		}
-		if ( '' !== get_option( 'bouncer_ai_api_key', '' ) ) {
-			return 'bouncer_setting';
+
+		$opt = $this->connector_database_option_name();
+		$db  = get_option( $opt, '' );
+
+		if ( is_string( $db ) && '' !== $db ) {
+			return 'connector_db';
 		}
 
 		return 'none';
@@ -194,6 +174,7 @@ class Bouncer_Ai_Scanner {
 				'ai_no_key',
 				sprintf( 'AI scan skipped for "%s" — no API key configured.', $plugin_slug )
 			);
+
 			return null;
 		}
 
@@ -219,6 +200,7 @@ class Bouncer_Ai_Scanner {
 				'ai_scan_failed',
 				sprintf( 'AI scan failed for "%s".', $plugin_slug )
 			);
+
 			return null;
 		}
 
@@ -274,6 +256,7 @@ class Bouncer_Ai_Scanner {
 						$n = $c->getFilename();
 						return 'vendor' !== $n && 'node_modules' !== $n && '.' !== $n[0];
 					}
+
 					return true;
 				}
 			),
@@ -287,7 +270,8 @@ class Bouncer_Ai_Scanner {
 
 			$content = @file_get_contents( $file->getPathname() ); // phpcs:ignore WordPress.WP.AlternativeFunctions
 			if ( false === $content ) {
-				continue; }
+				continue;
+			}
 
 			$relative   = str_replace( $path . '/', '', $file->getPathname() );
 			$line_count = substr_count( $content, "\n" ) + 1;
@@ -301,15 +285,18 @@ class Bouncer_Ai_Scanner {
 
 			if ( preg_match_all( '/function\s+([a-zA-Z_]\w*)\s*\(/', $content, $m ) ) {
 				foreach ( $m[1] as $f ) {
-					$fp['functions'][] = $relative . '::' . $f; }
+					$fp['functions'][] = $relative . '::' . $f;
+				}
 			}
 			if ( preg_match_all( '/class\s+([a-zA-Z_]\w*)/', $content, $m ) ) {
 				foreach ( $m[1] as $c ) {
-					$fp['classes'][] = $c; }
+					$fp['classes'][] = $c;
+				}
 			}
 			if ( preg_match_all( '/add_(?:action|filter)\s*\(\s*[\'"]([^\'"]+)[\'"]/', $content, $m ) ) {
 				foreach ( $m[1] as $h ) {
-					$fp['hooks'][] = $h; }
+					$fp['hooks'][] = $h;
+				}
 			}
 
 			$dangerous = array( 'eval', 'exec', 'shell_exec', 'system', 'passthru', 'proc_open', 'curl_init', 'base64_decode' );
@@ -321,11 +308,13 @@ class Bouncer_Ai_Scanner {
 
 			if ( preg_match_all( '/\$wpdb\s*->\s*(insert|update|delete|replace|query|get_var|get_row|get_results)\s*\(/', $content, $m ) ) {
 				foreach ( $m[1] as $op ) {
-					$fp['db_operations'][] = $relative . '::$wpdb->' . $op; }
+					$fp['db_operations'][] = $relative . '::$wpdb->' . $op;
+				}
 			}
 			if ( preg_match_all( '/wp_remote_(?:get|post|head|request)\s*\(\s*[\'"]https?:\/\/([^\/"\']+)/', $content, $m ) ) {
 				foreach ( $m[1] as $d ) {
-					$fp['http_calls'][] = $d; }
+					$fp['http_calls'][] = $d;
+				}
 			}
 
 			$patterns = array(
@@ -335,12 +324,14 @@ class Bouncer_Ai_Scanner {
 			);
 			foreach ( $patterns as $pat => $label ) {
 				if ( preg_match( $pat, $content ) ) {
-					$fp['suspicious'][] = $relative . ': ' . $label; }
+					$fp['suspicious'][] = $relative . ': ' . $label;
+				}
 			}
 		}
 
 		$fp['hooks']     = array_values( array_unique( $fp['hooks'] ) );
 		$fp['api_calls'] = array_values( array_unique( $fp['api_calls'] ) );
+
 		return $fp;
 	}
 
@@ -400,15 +391,18 @@ class Bouncer_Ai_Scanner {
 
 		if ( is_wp_error( $response ) ) {
 			$this->logger->log( Bouncer_Logger::SEVERITY_WARNING, Bouncer_Logger::CHANNEL_AI, '', 'api_error', 'Claude API: ' . $response->get_error_message() );
+
 			return null;
 		}
 
 		if ( 200 !== wp_remote_retrieve_response_code( $response ) ) {
 			$this->logger->log( Bouncer_Logger::SEVERITY_WARNING, Bouncer_Logger::CHANNEL_AI, '', 'api_error', sprintf( 'Claude API HTTP %d.', wp_remote_retrieve_response_code( $response ) ) );
+
 			return null;
 		}
 
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
+
 		return $data['content'][0]['text'] ?? null;
 	}
 
@@ -418,12 +412,15 @@ class Bouncer_Ai_Scanner {
 		$parsed = json_decode( trim( $clean ), true );
 
 		if ( is_array( $parsed ) && isset( $parsed['risk_level'] ) ) {
-			return $parsed; }
+			return $parsed;
+		}
 		if ( preg_match( '/\{[\s\S]*\}/', $response, $m ) ) {
 			$parsed = json_decode( $m[0], true );
 			if ( is_array( $parsed ) && isset( $parsed['risk_level'] ) ) {
-				return $parsed; }
+				return $parsed;
+			}
 		}
+
 		return null;
 	}
 

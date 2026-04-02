@@ -55,9 +55,10 @@ class Bouncer {
 			$this->file_integrity->init();
 		}
 
-		// AI Scanner — Connectors register after plugins_loaded on WP 7.0+, so we re-resolve on init.
+		// AI Scanner — resolve after Connectors registry exists (init + wp_connectors_init).
 		$this->refresh_ai_scanner();
 		add_action( 'init', array( $this, 'refresh_ai_scanner' ), 20 );
+		add_action( 'wp_connectors_init', array( $this, 'refresh_ai_scanner' ), 50 );
 
 		if ( is_admin() ) {
 			Bouncer_Site_Health::init();
@@ -128,20 +129,19 @@ class Bouncer {
 	}
 
 	/**
-	 * Deep Dive scanner when the setting is on and an API key resolves (Connectors may register after Bouncer’s plugins_loaded init).
+	 * Deep Dive scanner when the setting is on and an API key resolves (Connectors registry + env/constant).
 	 */
 	public function get_ai_scanner_if_available(): ?Bouncer_Ai_Scanner {
 		if ( ! $this->get_setting( 'ai_scanning' ) ) {
 			return null;
 		}
-		$legacy = $this->get_setting( 'ai_api_key', '' );
-		$legacy = is_string( $legacy ) ? $legacy : '';
-		$scanner = new Bouncer_Ai_Scanner( $this->logger, $this->manifest, $legacy );
+		$scanner = new Bouncer_Ai_Scanner( $this->logger, $this->manifest );
+
 		return $scanner->is_available() ? $scanner : null;
 	}
 
 	/**
-	 * Refresh cached AI scanner (call after Connectors API is available).
+	 * Refresh cached AI scanner (after init / wp_connectors_init).
 	 */
 	public function refresh_ai_scanner(): void {
 		$this->ai_scanner = $this->get_ai_scanner_if_available();
@@ -299,11 +299,15 @@ class Bouncer {
 
 		register_rest_route(
 			'bouncer/v1',
-			'/manifest/(?P<slug>[a-z0-9\-]+)',
+			'/manifest/(?P<slug>[a-zA-Z0-9._-]+)',
 			array(
 				'methods'             => 'GET',
 				'callback'            => function ( $req ) {
-					$m = $this->manifest->get_manifest( sanitize_text_field( $req['slug'] ) );
+					$slug = sanitize_text_field( $req['slug'] );
+					if ( ! Bouncer_Installed_Plugins::is_installed_slug( $slug ) ) {
+						return new \WP_Error( 'not_found', __( 'Plugin is not installed.', 'bouncer' ), array( 'status' => 404 ) );
+					}
+					$m = $this->manifest->get_manifest( $slug );
 					return $m ? rest_ensure_response( $m ) : new \WP_Error( 'not_found', 'No manifest.', array( 'status' => 404 ) );
 				},
 				'permission_callback' => $admin_check,
@@ -312,7 +316,7 @@ class Bouncer {
 
 		register_rest_route(
 			'bouncer/v1',
-			'/scan/(?P<slug>[a-z0-9\-]+)',
+			'/scan/(?P<slug>[a-zA-Z0-9._-]+)',
 			array(
 				'methods'             => 'POST',
 				'callback'            => function ( $req ) {
@@ -323,7 +327,10 @@ class Bouncer {
 							array( 'status' => 429 )
 						);
 					}
-					$slug   = sanitize_text_field( $req['slug'] );
+					$slug = sanitize_text_field( $req['slug'] );
+					if ( ! Bouncer_Installed_Plugins::is_installed_slug( $slug ) ) {
+						return new \WP_Error( 'not_found', __( 'Plugin is not installed.', 'bouncer' ), array( 'status' => 404 ) );
+					}
 					$run_ai = $req->get_param( 'run_ai' );
 					$run_ai = null === $run_ai ? true : rest_sanitize_boolean( $run_ai );
 
