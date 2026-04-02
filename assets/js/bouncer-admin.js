@@ -1,7 +1,6 @@
 /**
  * Bouncer Admin JavaScript.
- *
- * @param {Object} $ jQuery.
+ * @param {object} $ jQuery.
  */
 
 (function ($) {

@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -43,7 +43,7 @@ jobs:
         run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
           key: ${{ runner.os }}-php-${{ matrix.php }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -57,8 +57,17 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-progress
 
+      # Packagist advisories API sometimes returns 5xx; retry instead of failing the whole matrix.
       - name: Composer audit
-        run: composer audit
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if composer audit; then
+              exit 0
+            fi
+            echo "::warning::composer audit failed (attempt ${attempt}/5); retrying in 25s…"
+            sleep 25
+          done
+          exit 1
 
       - name: Lint (syntax, PHPCS, PHP compatibility)
         run: composer run lint
@@ -69,10 +78,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: npm

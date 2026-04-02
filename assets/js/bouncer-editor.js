@@ -1,7 +1,6 @@
 /**
  * Block editor: lightweight pre-publish reminder (Bouncer).
- *
- * @param {Object} wp WordPress editor globals (`window.wp`).
+ * @param {object} wp WordPress editor globals (`window.wp`).
  */
 (function (wp) {
 	if (!wp || !wp.plugins || !wp.editPost || !wp.element) {
