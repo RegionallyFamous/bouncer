@@ -13,6 +13,16 @@ Locally, install dev dependencies and run PHPCS (WPCS):
 
 Fix reported issues; align with WordPress Coding Standards 3.x. Exclude `vendor/` from distribution zips (see below).
 
+Continuous integration (GitHub Actions)
+---------------------------------------
+Pull requests and pushes to `main` run CI: `composer validate`, `composer audit`, `composer run lint` (PHP parallel syntax check, PHPCS with `phpcs.xml.dist`, and PHPCompatibilityWP via `phpcs-compat.xml.dist`), ESLint on `assets/js`, and `npm audit`. To match CI locally:
+
+  composer install
+  npm ci
+  composer run lint
+  npm run lint:js
+  npm audit
+
 Version source of truth
 -----------------------
 * Plugin header and BOUNCER_VERSION in bouncer.php

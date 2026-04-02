@@ -8,7 +8,11 @@
 	<exclude-pattern>db.php</exclude-pattern>
 
 	<arg name="extensions" value="php"/>
+	<arg name="cache" value=".phpcs-cache"/>
 	<arg value="ps"/>
+
+	<config name="minimum_supported_wp_version" value="6.4"/>
+	<config name="testVersion" value="8.1-"/>
 
 	<!-- Core+Security pulls strict DB/ternary sniffs; keep scan focused on submission-critical issues. -->
 	<rule ref="WordPress.Security"/>

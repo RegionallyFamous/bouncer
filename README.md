@@ -1,107 +1,103 @@
 # Bouncer
 
-### The first plugin behavior firewall for WordPress.
+[![CI](https://github.com/nick/bouncer/actions/workflows/ci.yml/badge.svg)](https://github.com/nick/bouncer/actions/workflows/ci.yml)
 
----
+Your plugins can do anything. Bouncer makes sure they don't.
 
-Every plugin you install gets the keys to the kingdom.
+You probably don't think twice when you install a WordPress plugin. You shouldn't have to. But here's what actually happens when you click **Activate**:
 
-Your database. Your filesystem. Your network. All of it. A contact form plugin can read your user passwords. A carousel plugin can phone home to a server you've never heard of. A SEO plugin can rewrite your authentication hooks.
+That plugin gets access to everything. Your customer list. Your passwords. Your files. Your entire site. It can send your data to any server in the world. It can change how people log in. It can rewrite other plugins.
 
-This isn't a bug. It's how WordPress works. And nobody is watching.
+A simple contact form plugin has the same level of access as WordPress itself.
 
----
+That's not a worst-case scenario. That's how WordPress is designed. Every plugin, every time.
 
-## The security tools you have look backwards
+And until now, nothing was watching what they do with that access.
 
-Wordfence checks files against known malware signatures. Patchstack matches your plugin versions against a CVE database. Sucuri filters requests at the network edge.
+## Your security plugins look for known problems
 
-They're all asking the same question: **"Is this a known threat?"**
+The security tools you probably already use — Wordfence, Sucuri, Patchstack — are good at what they do. They check your plugins against a list of known threats. If your plugin version matches a known vulnerability, they warn you. If a file matches a known piece of malware, they flag it.
 
-That works — until it doesn't. When a plugin gets compromised through a supply chain attack (a stolen developer password, a hijacked update), there's no CVE yet. No signature. No WAF rule. The plugin just quietly starts doing things it never did before.
+But what about threats nobody knows about yet?
 
-11,334 new plugin vulnerabilities were discovered in 2025. That's 31 per day. 43% require zero authentication. And supply chain attacks — where legitimate plugins get poisoned at the source — are the fastest-growing category.
+In 2025, over 11,000 new plugin security issues were discovered. That's more than 30 per day. Almost half of them could be exploited by anyone — no password required.
 
-The window between compromise and detection? That's where sites get owned.
+The scariest ones are the attacks where a perfectly safe plugin gets a poisoned update. The plugin developer's account gets stolen, and a bad actor pushes an update that looks normal but quietly does something it shouldn't. There's no warning for that. No known signature. Your security tools see a trusted plugin updating normally.
 
----
+The gap between when that happens and when someone figures it out? That's when damage gets done.
 
-## Bouncer asks a different question
+## Bouncer watches what your plugins actually do
 
-**"Is this plugin doing something it shouldn't?"**
+Instead of checking a list of known threats, Bouncer watches your plugins in real time and asks a simple question:
 
-Instead of checking IDs at the door and hoping for the best, Bouncer watches the room all night.
+**"Is this plugin doing something it's not supposed to do?"**
 
-It generates a behavioral contract for every plugin on your site — what database tables it touches, what domains it contacts, what hooks it registers, what dangerous functions it calls. Then it monitors every request against those contracts.
+When you install a plugin, Bouncer creates a profile of its normal behavior — what parts of your site it reads and writes, what outside servers it talks to, and what parts of WordPress it interacts with.
 
-A gallery plugin suddenly writing to your users table? Not in the contract.
+Then, on every page load, Bouncer checks.
 
-A slider plugin calling a domain in Eastern Europe that wasn't there last version? Not in the contract.
+Did a plugin just try to access your user list for no reason? Bouncer catches that.
 
-A caching plugin registering a callback on `wp_login` at priority zero? Not in the contract.
+Did a plugin start sending data to a server it never contacted before? Bouncer catches that.
 
-Bouncer catches the things that happen between the compromise and the CVE. The hours nobody else is watching.
+Did a plugin file change when there was no update? Bouncer catches that — and can shut the plugin down automatically.
 
----
+You don't need to understand the technical details. Bouncer shows you a simple dashboard: green means everything is normal, yellow means something unusual happened, red means something needs your attention right now.
 
-## Cloudflare said WordPress plugin security is broken
+## AI that explains what your plugins do (in plain English)
 
-They're right. In April 2026, Cloudflare launched EmDash — a whole new CMS built from scratch with V8 sandboxes that isolate every plugin in its own secure container. It's architecturally elegant. It's also useless to the 810 million websites already running WordPress.
+This is optional — Bouncer works perfectly fine without it. But if you want a deeper look, Bouncer can use AI to analyze a plugin's code when you install or update it.
 
-Bouncer is the answer that doesn't require burning your site to the ground.
+It won't send your actual code anywhere. It sends a summary — like a table of contents, not the book itself — and gets back a report that tells you:
 
-You can't sandbox PHP plugins. But you can watch them so closely that the moment they step out of line, you know. And with AI reading plugin code before it ever runs, you can catch most threats at the door.
+- What the plugin actually does (not what the description says — what the code says)
+- Whether that's normal for this type of plugin
+- What changed since the last version
+- A risk score: low, medium, or high
+- A plain-English explanation of anything concerning
 
-**EmDash prevents misbehavior by architecture. Bouncer detects it by intelligence.**
+Think of it like getting a home inspection before you move in. You don't need to understand plumbing to read the report.
 
-One requires leaving WordPress. The other protects the WordPress you already have.
+## Cloudflare thinks WordPress is the problem. We disagree.
 
----
+In April 2026, Cloudflare launched an entirely new platform called EmDash — their answer to WordPress plugin security. Their argument: WordPress can't be fixed, so start over.
 
-## AI that reads the code before it runs
+They're right that plugin security is broken. They're wrong that the answer is to abandon 43% of the entire internet.
 
-When you install or update a plugin, Bouncer can analyze it with Claude before activation. Not pattern matching. Not signature checking. Actually reading the code structure and asking: does this plugin do what it says it does?
+Bouncer fixes the security problem without leaving WordPress.
 
-The AI generates a plain-English report. What the plugin does. Whether that's normal. What changed since the last version. What looks suspicious. A risk score a non-technical site owner can understand.
+EmDash asks you to move to a new platform with zero plugins, zero themes, and zero community. Bouncer works with the site you already have, the plugins you already use, and the content you've already built.
 
-Your source code never leaves your server. Bouncer sends structural fingerprints only — function signatures, hook registrations, API patterns. Not your code. Not your files.
+You shouldn't have to start over to be safe.
 
----
+## It works alongside the tools you already use
 
-## This isn't a replacement for your security stack
+Bouncer isn't a replacement for Wordfence or Patchstack. It's a different layer of protection.
 
-Bouncer doesn't do what Wordfence does. It does what Wordfence can't.
+Wordfence catches known malware. Patchstack warns you about known vulnerabilities. Bouncer catches the unknown stuff — when a trusted plugin starts doing something new and suspicious.
 
-Use them together. Wordfence catches known malware. Patchstack patches known vulnerabilities. Bouncer catches unknown behavioral changes in plugins you already trust.
+Known threats. Known vulnerabilities. Unknown behavior. Three layers. Same site.
 
-Different question. Different layer. Same site.
+## Start by watching. Act when you're ready.
 
----
+Bouncer starts in Monitor Mode. It watches everything, logs everything, and blocks nothing. Run it for a week. Look at what your plugins have been doing behind the scenes. You might be surprised.
 
-## Start by watching. Enforce when you're ready.
+When you're comfortable, you can switch to Enforce Mode. Bouncer will actively block suspicious activity and shut down compromised plugins automatically.
 
-Monitor Mode is the default. Bouncer observes, logs, and learns. It builds behavioral baselines for your plugins without blocking anything. Run it for a week. Look at the event log. See what your plugins actually do behind the scenes. You'll probably be surprised.
+You decide when. You decide the thresholds.
 
-Enforce Mode is for when you're confident. Bouncer blocks outbound HTTP requests to undeclared domains and emergency-deactivates plugins with unauthorized file changes. You choose when. You choose the thresholds.
+## Free. Open source. No subscription required.
 
----
+Bouncer is built by [Regionally Famous](https://regionallyfamous.com), a WordPress studio that builds and manages real websites for real clients. We needed a tool that watched our plugins' behavior, and it didn't exist. So we built it.
 
-## Built by people who build WordPress sites
+The core protection works without AI, without a cloud service, and without paying anyone a monthly fee. The AI features are optional and use your own API key — we don't see your data, and we don't charge for the service.
 
-Bouncer is built by [Regionally Famous](https://regionallyfamous.com) — a WordPress studio that manages real client sites and needed a tool that didn't exist.
+The entire plugin is free and open source.
 
-We weren't looking for another malware scanner. We wanted to know what our plugins were actually doing. When a trusted plugin pushed a suspicious update, we wanted to know before the security blogs did.
+## The way we think about plugin security is changing
 
-So we built it.
+The old way: Trust plugins by reputation. Scan for known threats. Patch after something goes wrong.
 
-The core monitoring works without AI. Without a cloud service. Without a subscription. The AI features are opt-in and bring-your-own-key. The whole thing is GPL.
+The new way: Watch what every plugin does, all the time. Catch problems before they have a name.
 
----
-
-## The WordPress security conversation is changing
-
-The old model: trust plugins by reputation, scan for known threats, patch after disclosure.
-
-The new model: verify behavior continuously, detect anomalies in real-time, catch compromises before they have a name.
-
-Bouncer is the new model. For the WordPress you already have.
+Bouncer is the new way. For the WordPress site you already have. Without starting over.

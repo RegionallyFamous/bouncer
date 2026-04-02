@@ -1,13 +1,15 @@
 /**
  * Block editor: lightweight pre-publish reminder (Bouncer).
+ *
+ * @param {Object} wp WordPress editor globals (`window.wp`).
  */
-( function ( wp ) {
-	if ( ! wp || ! wp.plugins || ! wp.editPost || ! wp.element ) {
+(function (wp) {
+	if (!wp || !wp.plugins || !wp.editPost || !wp.element) {
 		return;
 	}
-	var el = wp.element.createElement;
-	wp.plugins.registerPlugin( 'bouncer-prepublish', {
-		render: function () {
+	const el = wp.element.createElement;
+	wp.plugins.registerPlugin('bouncer-prepublish', {
+		render() {
 			return el(
 				wp.editPost.PluginPrePublishPanel,
 				{
@@ -21,5 +23,5 @@
 				)
 			);
 		},
-	} );
-} )( window.wp );
+	});
+})(window.wp);

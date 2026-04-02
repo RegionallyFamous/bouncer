@@ -1,0 +1,15 @@
+{
+	"name": "bouncer",
+	"private": true,
+	"description": "Dev tooling for Bouncer WordPress plugin (not distributed)",
+	"scripts": {
+		"lint:js": "eslint \"assets/js/**/*.js\""
+	},
+	"devDependencies": {
+		"@wordpress/eslint-plugin": "^22.0.0",
+		"eslint": "^8.57.0"
+	},
+	"overrides": {
+		"minimatch": "^10.0.0"
+	}
+}
