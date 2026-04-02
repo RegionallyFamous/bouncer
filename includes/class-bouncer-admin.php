@@ -462,22 +462,361 @@ class Bouncer_Admin {
 				'installedPluginSlugs' => Bouncer_Installed_Plugins::get_slug_list(),
 				'scanBatchSize'        => max( 1, min( 20, $batch_max ) ),
 				'strings'              => array(
-					'scanning'       => __( 'Scanning...', 'bouncer' ),
-					'complete'       => __( 'Scan complete', 'bouncer' ),
-					'error'          => __( 'Scan failed', 'bouncer' ),
-					'confirm'        => __( 'Are you sure?', 'bouncer' ),
-					'scanAll'        => __( 'Scan all installed plugins', 'bouncer' ),
-					'scanAllRunning' => __( 'Scanning plugins…', 'bouncer' ),
+					'scanning'       => __( 'Looking under the hood…', 'bouncer' ),
+					'complete'       => __( 'All set — that scan’s done', 'bouncer' ),
+					'error'          => __( 'That scan didn’t finish — want to try again?', 'bouncer' ),
+					'confirm'        => __( 'Sure you want to do that?', 'bouncer' ),
+					'scanAll'        => __( 'Scan every installed plugin', 'bouncer' ),
+					'scanAllRunning' => __( 'Working through your plugins…', 'bouncer' ),
 					/* translators: 1: number finished, 2: total plugins */
-					'scanAllProgress' => __( 'Scanned %1$d of %2$d…', 'bouncer' ),
-					'scanAllDone'     => __( 'All scans finished. Reloading…', 'bouncer' ),
-					'rateLimited'     => __( 'Rate limited — wait a minute, then click the button again to finish remaining plugins.', 'bouncer' ),
-					'scanAllEmpty'    => __( 'No installed plugins to scan in this context.', 'bouncer' ),
+					'scanAllProgress' => __( 'Checked %1$d of %2$d…', 'bouncer' ),
+					'scanAllDone'     => __( 'Finished the batch — refreshing the page…', 'bouncer' ),
+					'rateLimited'     => __( 'Whoa — slow down a minute, then hit the button again to finish the rest.', 'bouncer' ),
+					'scanAllEmpty'    => __( 'No plugins to scan here right now.', 'bouncer' ),
 					/* translators: %d: number of plugins not yet scanned */
-					'continueScanLeft' => __( 'Continue scan (%d left)', 'bouncer' ),
+					'continueScanLeft' => __( 'Keep going (%d left)', 'bouncer' ),
 				),
 			)
 		);
+	}
+
+	/**
+	 * Risk band slug for table row accents (matches render_risk_badge thresholds).
+	 *
+	 * @param int $score Risk score 0–100.
+	 * @return string low|medium|high
+	 */
+	private function risk_row_class_for_score( int $score ): string {
+		if ( $score <= 20 ) {
+			return 'low';
+		}
+		if ( $score <= 50 ) {
+			return 'medium';
+		}
+		return 'high';
+	}
+
+	/**
+	 * Prioritized “what needs attention” strip for the dashboard.
+	 *
+	 * @param array<string, int> $counts Severity counts (last 7 days).
+	 */
+	private function render_dashboard_at_a_glance( array $counts ): void {
+		$db_dropin   = (bool) get_option( 'bouncer_db_dropin_installed', false );
+		$db_conflict = (bool) get_option( 'bouncer_db_dropin_conflict', false );
+		$mode        = $this->bouncer->get_setting( 'mode', 'monitor' );
+		$db_works    = $db_dropin && ! $db_conflict;
+		$db_wanted   = $this->bouncer->get_setting( 'db_monitoring' );
+
+		$installed = Bouncer_Installed_Plugins::get_by_slug();
+		$by_slug   = $this->get_latest_manifest_rows_by_slug();
+		$unscanned = 0;
+		foreach ( array_keys( $installed ) as $slug ) {
+			if ( ! isset( $by_slug[ $slug ] ) ) {
+				++$unscanned;
+			}
+		}
+
+		$items = array();
+
+		if ( (int) $counts['emergency'] > 0 || (int) $counts['critical'] > 0 ) {
+			$sev = (int) $counts['emergency'] > 0 ? 'emergency' : 'critical';
+			$items[] = array(
+				'priority' => 1,
+				'tier'     => 'urgent',
+				'icon'     => 'dashicons-warning',
+				'title'    => __( 'Something loud happened in the last week', 'bouncer' ),
+				'hint'     => __( 'There are serious entries in your event log worth reviewing soon.', 'bouncer' ),
+				'url'      => bouncer_admin_url( 'events', array( 'severity' => $sev ) ),
+				'link'     => __( 'Peek the Event Log →', 'bouncer' ),
+			);
+		}
+
+		if ( $db_conflict ) {
+			$items[] = array(
+				'priority' => 2,
+				'tier'     => 'serious',
+				'icon'     => 'dashicons-database',
+				'title'    => __( 'Another tool is already sitting on your database door', 'bouncer' ),
+				'hint'     => __( 'We can’t tag database queries to a plugin until that’s sorted. Your other watches still run.', 'bouncer' ),
+				'url'      => bouncer_admin_url( 'settings' ),
+				'link'     => __( 'What to do next (Settings) →', 'bouncer' ),
+			);
+		}
+
+		if ( 'enforce' === $mode && ! $this->bouncer->get_setting( 'http_monitoring' ) ) {
+			$items[] = array(
+				'priority' => 3,
+				'tier'     => 'serious',
+				'icon'     => 'dashicons-admin-site-alt3',
+				'title'    => __( 'Outbound web watching is snoozing', 'bouncer' ),
+				'hint'     => __( 'You’re in “stop the bad stuff” mode, but HTTP checking is off—odd external calls won’t get caught.', 'bouncer' ),
+				'url'      => bouncer_admin_url( 'settings' ),
+				'link'     => __( 'Turn it on in Settings →', 'bouncer' ),
+			);
+		}
+
+		if ( 'enforce' === $mode && ! $this->bouncer->get_setting( 'file_integrity' ) ) {
+			$items[] = array(
+				'priority' => 3,
+				'tier'     => 'serious',
+				'icon'     => 'dashicons-shield',
+				'title'    => __( 'File tamper auto-response is paused', 'bouncer' ),
+				'hint'     => __( 'Enforce mode is on, but file integrity is off—Bouncer won’t auto-step in if plugin files change unexpectedly.', 'bouncer' ),
+				'url'      => bouncer_admin_url( 'settings' ),
+				'link'     => __( 'Wake that watch in Settings →', 'bouncer' ),
+			);
+		}
+
+		if ( $db_wanted && ! $db_works && ! $db_conflict ) {
+			$items[] = array(
+				'priority' => 3,
+				'tier'     => '',
+				'icon'     => 'dashicons-database',
+				'title'    => __( 'Database tagging isn’t fully hooked up yet', 'bouncer' ),
+				'hint'     => __( 'You asked to watch the database, but the extra hook isn’t active—usually a quick settings or reinstall step.', 'bouncer' ),
+				'url'      => bouncer_admin_url( 'settings' ),
+				'link'     => __( 'Check Settings →', 'bouncer' ),
+			);
+		}
+
+		if ( $this->bouncer->get_setting( 'ai_scanning' ) && null === $this->bouncer->get_ai_scanner_if_available() ) {
+			$items[] = array(
+				'priority' => 4,
+				'tier'     => '',
+				'icon'     => 'dashicons-welcome-learn-more',
+				'title'    => __( 'Deep Dive is waiting on a key', 'bouncer' ),
+				'hint'     => __( 'Quick Look still runs on your server. Add your Anthropic key when you want the longer story.', 'bouncer' ),
+				'url'      => admin_url( 'options-general.php?page=connectors' ),
+				'link'     => __( 'Open Connectors →', 'bouncer' ),
+			);
+		}
+
+		if ( $unscanned > 0 && count( $installed ) > 0 ) {
+			$items[] = array(
+				'priority' => 4,
+				'tier'     => '',
+				'icon'     => 'dashicons-admin-plugins',
+				'title'    => sprintf(
+					/* translators: %d: number of plugins without a saved manifest */
+					__( '%d plugin(s) haven’t had a Quick Look yet', 'bouncer' ),
+					$unscanned
+				),
+				'hint'     => __( 'Cheat sheets help Bouncer know what each plugin is allowed to do.', 'bouncer' ),
+				'url'      => bouncer_admin_url( 'manifests' ),
+				'link'     => __( 'Run scans in Manifests →', 'bouncer' ),
+			);
+		}
+
+		usort(
+			$items,
+			static function ( $a, $b ) {
+				return (int) $a['priority'] <=> (int) $b['priority'];
+			}
+		);
+
+		$has_urgent = false;
+		foreach ( $items as $it ) {
+			if ( 1 === (int) $it['priority'] ) {
+				$has_urgent = true;
+				break;
+			}
+		}
+
+		if ( empty( $items ) ) {
+			$band_class = 'bouncer-at-a-glance__band--calm';
+			$title      = __( 'Nice and quiet at the door', 'bouncer' );
+			$lede       = __( 'You’re good — nothing needs your attention right now. The cards below are there when you want more detail.', 'bouncer' );
+		} elseif ( $has_urgent ) {
+			$band_class = 'bouncer-at-a-glance__band--alert';
+			$title      = __( 'Heads up — start with the big stuff', 'bouncer' );
+			$lede       = __( 'We lined up the loudest items first so you know where to tap.', 'bouncer' );
+		} else {
+			$band_class = 'bouncer-at-a-glance__band--watch';
+			$title      = __( 'A few things could use a peek', 'bouncer' );
+			$lede       = __( 'Nothing scary by default—just some friendly nudges when something’s off.', 'bouncer' );
+		}
+
+		?>
+		<section class="bouncer-at-a-glance" aria-labelledby="bouncer-glance-heading">
+			<div class="bouncer-at-a-glance__band <?php echo esc_attr( $band_class ); ?>">
+				<div class="bouncer-at-a-glance__headline">
+					<span class="bouncer-at-a-glance__eyebrow"><?php esc_html_e( 'At a glance', 'bouncer' ); ?></span>
+					<h2 id="bouncer-glance-heading" class="bouncer-at-a-glance__title"><?php echo esc_html( $title ); ?></h2>
+					<p class="bouncer-at-a-glance__lede"><?php echo esc_html( $lede ); ?></p>
+				</div>
+				<?php if ( ! empty( $items ) ) : ?>
+				<ul class="bouncer-at-a-glance__list">
+					<?php foreach ( $items as $item ) : ?>
+					<li class="bouncer-glance-item<?php echo $item['tier'] ? ' bouncer-glance-item--' . esc_attr( $item['tier'] ) : ''; ?>">
+						<span class="dashicons <?php echo esc_attr( $item['icon'] ); ?>" aria-hidden="true"></span>
+						<div class="bouncer-glance-item__body">
+							<span class="bouncer-glance-item__title"><?php echo esc_html( $item['title'] ); ?></span>
+							<span class="bouncer-glance-item__hint"><?php echo esc_html( $item['hint'] ); ?></span>
+							<a class="bouncer-glance-item__link" href="<?php echo esc_url( $item['url'] ); ?>"><?php echo esc_html( $item['link'] ); ?></a>
+						</div>
+					</li>
+					<?php endforeach; ?>
+				</ul>
+				<?php endif; ?>
+			</div>
+		</section>
+		<?php
+	}
+
+	/**
+	 * Dashboard severity metric cards with drill-down links.
+	 *
+	 * @param array<string, int> $counts Severity counts (last 7 days).
+	 */
+	private function render_dashboard_metric_cards( array $counts ): void {
+		$defs = array(
+			array(
+				'key'   => 'info',
+				'class' => 'bouncer-metric-card--info',
+				'label' => __( 'FYI notes', 'bouncer' ),
+			),
+			array(
+				'key'   => 'warning',
+				'class' => 'bouncer-metric-card--warning',
+				'label' => __( 'Worth a look', 'bouncer' ),
+			),
+			array(
+				'key'   => 'critical',
+				'class' => 'bouncer-metric-card--critical',
+				'label' => __( 'Serious flags', 'bouncer' ),
+			),
+			array(
+				'key'   => 'emergency',
+				'class' => 'bouncer-metric-card--emergency',
+				'label' => __( 'Big deals', 'bouncer' ),
+			),
+		);
+		?>
+		<div class="bouncer-metrics" role="list">
+			<?php foreach ( $defs as $def ) : ?>
+				<?php
+				$n = isset( $counts[ $def['key'] ] ) ? (int) $counts[ $def['key'] ] : 0;
+				?>
+			<div class="bouncer-metric-card <?php echo esc_attr( $def['class'] ); ?>" role="listitem">
+				<span class="bouncer-metric-card__value"><?php echo esc_html( number_format( $n ) ); ?></span>
+				<span class="bouncer-metric-card__label"><?php echo esc_html( $def['label'] ); ?></span>
+				<?php if ( $n > 0 ) : ?>
+				<a class="bouncer-metric-card__link" href="<?php echo esc_url( bouncer_admin_url( 'events', array( 'severity' => $def['key'] ) ) ); ?>">
+					<?php esc_html_e( 'Take a look →', 'bouncer' ); ?>
+				</a>
+				<?php endif; ?>
+			</div>
+			<?php endforeach; ?>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Dashboard: channel status as responsive cards.
+	 */
+	private function render_dashboard_channel_grid(): void {
+		$db_dropin   = (bool) get_option( 'bouncer_db_dropin_installed', false );
+		$db_conflict = (bool) get_option( 'bouncer_db_dropin_conflict', false );
+		$db_ok       = $db_dropin && ! $db_conflict;
+
+		$deep_ready = $this->bouncer->get_setting( 'ai_scanning' ) && null !== $this->bouncer->get_ai_scanner_if_available();
+		$ai_enabled = $this->bouncer->get_setting( 'ai_scanning' );
+
+		$http_on   = (bool) $this->bouncer->get_setting( 'http_monitoring' );
+		$hook_on   = (bool) $this->bouncer->get_setting( 'hook_auditing' );
+		$file_on   = (bool) $this->bouncer->get_setting( 'file_integrity' );
+		$rest_on   = (bool) $this->bouncer->get_setting( 'rest_monitoring' );
+
+		$channels = array(
+			array(
+				'name'       => __( 'Database query tags', 'bouncer' ),
+				'card_tone'  => $db_ok ? 'on' : ( $db_conflict ? 'maybe' : 'off' ),
+				'pill'       => $db_ok ? __( 'Watching', 'bouncer' ) : ( $db_conflict ? __( 'Needs attention', 'bouncer' ) : __( 'Not watching', 'bouncer' ) ),
+				'pill_c'     => $db_ok ? 'on' : ( $db_conflict ? 'key' : 'off' ),
+				'hint'       => $db_ok
+					? __( 'We can tell which plugin touched the database on each request.', 'bouncer' )
+					: ( $db_conflict
+						? __( 'Another db.php is in place—see Settings for the friendly version of what that means.', 'bouncer' )
+						: __( 'Flip this on in Settings when you want SQL lines tied to plugins.', 'bouncer' ) ),
+				'action_url' => $db_ok ? '' : bouncer_admin_url( 'settings' ),
+				'action_txt' => __( 'Open Settings →', 'bouncer' ),
+			),
+			array(
+				'name'       => __( 'Outbound web calls', 'bouncer' ),
+				'card_tone'  => $http_on ? 'on' : 'off',
+				'pill'       => $http_on ? __( 'Watching', 'bouncer' ) : __( 'Snoozing', 'bouncer' ),
+				'pill_c'     => $http_on ? 'on' : 'off',
+				'hint'       => __( 'Spots unexpected trips to the wider internet.', 'bouncer' ),
+				'action_url' => $http_on ? '' : bouncer_admin_url( 'settings' ),
+				'action_txt' => __( 'Flip it on in Settings →', 'bouncer' ),
+			),
+			array(
+				'name'       => __( 'Hook sign-in sheet', 'bouncer' ),
+				'card_tone'  => $hook_on ? 'on' : 'off',
+				'pill'       => $hook_on ? __( 'Watching', 'bouncer' ) : __( 'Snoozing', 'bouncer' ),
+				'pill_c'     => $hook_on ? 'on' : 'off',
+				'hint'       => __( 'Keeps an eye on who registers sensitive WordPress hooks.', 'bouncer' ),
+				'action_url' => $hook_on ? '' : bouncer_admin_url( 'settings' ),
+				'action_txt' => __( 'Flip it on in Settings →', 'bouncer' ),
+			),
+			array(
+				'name'       => __( 'File fingerprints', 'bouncer' ),
+				'card_tone'  => $file_on ? 'on' : 'off',
+				'pill'       => $file_on ? __( 'Watching', 'bouncer' ) : __( 'Snoozing', 'bouncer' ),
+				'pill_c'     => $file_on ? 'on' : 'off',
+				'hint'       => __( 'Notices when plugin files change without a hall pass.', 'bouncer' ),
+				'action_url' => $file_on ? '' : bouncer_admin_url( 'settings' ),
+				'action_txt' => __( 'Flip it on in Settings →', 'bouncer' ),
+			),
+			array(
+				'name'       => __( 'Quick Look (automatic)', 'bouncer' ),
+				'card_tone'  => 'on',
+				'pill'       => __( 'Always on', 'bouncer' ),
+				'pill_c'     => 'on',
+				'hint'       => __( 'Runs on your server for every scan—no outside API.', 'bouncer' ),
+				'action_url' => '',
+				'action_txt' => '',
+			),
+			array(
+				'name'       => __( 'Deep Dive (Claude)', 'bouncer' ),
+				'card_tone'  => $deep_ready ? 'on' : ( $ai_enabled ? 'maybe' : 'off' ),
+				'pill'       => $deep_ready ? __( 'Ready', 'bouncer' ) : ( $ai_enabled ? __( 'Needs a key', 'bouncer' ) : __( 'Optional / off', 'bouncer' ) ),
+				'pill_c'     => $deep_ready ? 'on' : ( $ai_enabled ? 'key' : 'off' ),
+				'hint'       => $deep_ready
+					? __( 'Longer plain-English story when you scan.', 'bouncer' )
+					: ( $ai_enabled
+						? __( 'Add a key under Connectors to unlock AI summaries.', 'bouncer' )
+						: __( 'Enable under Settings if you want Claude’s take.', 'bouncer' ) ),
+				'action_url' => $deep_ready ? '' : ( $ai_enabled ? admin_url( 'options-general.php?page=connectors' ) : bouncer_admin_url( 'settings' ) ),
+				'action_txt' => $deep_ready ? '' : ( $ai_enabled ? __( 'Add a key →', 'bouncer' ) : __( 'Flip it on in Settings →', 'bouncer' ) ),
+			),
+			array(
+				'name'       => __( 'REST write attempts (guests)', 'bouncer' ),
+				'card_tone'  => $rest_on ? 'on' : 'off',
+				'pill'       => $rest_on ? __( 'Watching', 'bouncer' ) : __( 'Snoozing', 'bouncer' ),
+				'pill_c'     => $rest_on ? 'on' : 'off',
+				'hint'       => __( 'Logs POST/PUT/PATCH/DELETE when someone isn’t logged in.', 'bouncer' ),
+				'action_url' => $rest_on ? '' : bouncer_admin_url( 'settings' ),
+				'action_txt' => __( 'Flip it on in Settings →', 'bouncer' ),
+			),
+		);
+
+		?>
+		<h2 class="bouncer-channels-heading"><?php esc_html_e( 'What we’re watching', 'bouncer' ); ?></h2>
+		<div class="bouncer-channel-grid" role="list">
+			<?php foreach ( $channels as $ch ) : ?>
+			<div class="bouncer-channel-card bouncer-channel-card--<?php echo esc_attr( $ch['card_tone'] ); ?>" role="listitem">
+				<h3 class="bouncer-channel-card__name"><?php echo esc_html( $ch['name'] ); ?></h3>
+				<span class="bouncer-channel-card__pill bouncer-channel-card__pill--<?php echo esc_attr( $ch['pill_c'] ); ?>"><?php echo esc_html( $ch['pill'] ); ?></span>
+				<p class="bouncer-channel-card__hint"><?php echo esc_html( $ch['hint'] ); ?></p>
+				<?php if ( $ch['action_url'] && $ch['action_txt'] ) : ?>
+				<a class="bouncer-channel-card__action" href="<?php echo esc_url( $ch['action_url'] ); ?>"><?php echo esc_html( $ch['action_txt'] ); ?></a>
+				<?php endif; ?>
+			</div>
+			<?php endforeach; ?>
+		</div>
+		<?php
 	}
 
 	/**
@@ -487,32 +826,34 @@ class Bouncer_Admin {
 		$counts         = $this->bouncer->logger->get_severity_counts( 7 );
 		$plugin_summary = $this->bouncer->logger->get_plugin_summary( 7 );
 		$mode           = $this->bouncer->get_setting( 'mode', 'monitor' );
-		$db_dropin      = get_option( 'bouncer_db_dropin_installed', false );
-		$db_conflict    = get_option( 'bouncer_db_dropin_conflict', false );
 
 		?>
 			<h2 class="screen-reader-text"><?php esc_html_e( 'Overview', 'bouncer' ); ?></h2>
 
-			<div class="bouncer-mode-badge bouncer-mode-<?php echo esc_attr( $mode ); ?>">
-				<?php
-				if ( 'enforce' === $mode ) {
-					esc_html_e( 'Enforce Mode', 'bouncer' );
-				} else {
-					esc_html_e( 'Monitor Mode', 'bouncer' );
-				}
-				?>
+			<?php $this->render_dashboard_at_a_glance( $counts ); ?>
+
+			<div class="bouncer-mode-row">
+				<span class="bouncer-mode-badge bouncer-mode-<?php echo esc_attr( 'enforce' === $mode ? 'enforce' : 'monitor' ); ?>">
+					<?php
+					if ( 'enforce' === $mode ) {
+						esc_html_e( 'On duty at the door (Enforce)', 'bouncer' );
+					} else {
+						esc_html_e( 'Taking notes first (Monitor)', 'bouncer' );
+					}
+					?>
+				</span>
 			</div>
 
-			<div class="bouncer-enforce-summary notice notice-info">
+			<div class="bouncer-card-notice bouncer-enforce-summary">
 				<p>
 					<?php
 					$fi_on = $this->bouncer->get_setting( 'file_integrity' );
 					if ( 'enforce' === $mode && $fi_on ) {
-						esc_html_e( 'Monitor mode only records events. Enforce mode can block outbound HTTP requests that violate a plugin manifest and can emergency-deactivate a plugin when file integrity monitoring detects unauthorized file changes. Database violations are logged but queries are not blocked.', 'bouncer' );
+						esc_html_e( 'Monitor is “see everything, block nothing.” Enforce can block sketchy outbound web calls that break a plugin’s cheat sheet, and—with file watching on—can park a plugin if its files change in a sketchy way. Database oddities get logged; queries themselves aren’t blocked.', 'bouncer' );
 					} elseif ( 'enforce' === $mode && ! $fi_on ) {
-						esc_html_e( 'Monitor mode only records events. Enforce mode can block outbound HTTP requests that violate a plugin manifest. File integrity monitoring is currently off in Settings, so Bouncer will not auto-deactivate plugins for file tampering until you turn that channel on. Database violations are logged but queries are not blocked.', 'bouncer' );
+						esc_html_e( 'You’re in Enforce, but file watching is off—so Bouncer won’t auto-pause plugins for surprise file edits until you turn that channel on in Settings. Outbound web rules still apply when HTTP watching is on.', 'bouncer' );
 					} else {
-						esc_html_e( 'Monitor mode only records events. In Enforce mode, Bouncer can block outbound HTTP that violates a manifest and can deactivate plugins when file integrity monitoring is on and detects tampering. Database violations are logged but queries are not blocked.', 'bouncer' );
+						esc_html_e( 'Monitor watches and learns. Flip to Enforce when you want outbound web rules and (with file watching) stronger responses to tampering. Database issues are logged, not blocked.', 'bouncer' );
 					}
 					?>
 				</p>
@@ -522,94 +863,13 @@ class Bouncer_Admin {
 
 			<?php $this->render_installed_plugins_scan_panel(); ?>
 
-			<?php if ( $db_conflict ) : ?>
-				<div class="notice notice-warning">
-					<p>
-						<?php esc_html_e( 'WordPress only loads one database drop-in at wp-content/db.php. Another file is already there, so Bouncer did not overwrite it.', 'bouncer' ); ?>
-					</p>
-					<p>
-						<?php esc_html_e( 'Database query attribution is disabled. Other Bouncer channels (HTTP monitoring, hook auditing, file integrity, etc.) still work.', 'bouncer' ); ?>
-					</p>
-					<p>
-						<?php esc_html_e( 'To use Bouncer\'s SQL attribution, remove or replace that drop-in only if the other plugin no longer needs it, then deactivate and reactivate Bouncer.', 'bouncer' ); ?>
-					</p>
-				</div>
-			<?php endif; ?>
+			<?php $this->render_dashboard_metric_cards( $counts ); ?>
 
-			<div class="bouncer-stats-grid">
-				<div class="bouncer-stat bouncer-stat-info">
-					<span class="bouncer-stat-number"><?php echo esc_html( number_format( $counts['info'] ) ); ?></span>
-					<span class="bouncer-stat-label"><?php esc_html_e( 'Info Events', 'bouncer' ); ?></span>
-				</div>
-				<div class="bouncer-stat bouncer-stat-warning">
-					<span class="bouncer-stat-number"><?php echo esc_html( number_format( $counts['warning'] ) ); ?></span>
-					<span class="bouncer-stat-label"><?php esc_html_e( 'Warnings', 'bouncer' ); ?></span>
-				</div>
-				<div class="bouncer-stat bouncer-stat-critical">
-					<span class="bouncer-stat-number"><?php echo esc_html( number_format( $counts['critical'] ) ); ?></span>
-					<span class="bouncer-stat-label"><?php esc_html_e( 'Critical', 'bouncer' ); ?></span>
-				</div>
-				<div class="bouncer-stat bouncer-stat-emergency">
-					<span class="bouncer-stat-number"><?php echo esc_html( number_format( $counts['emergency'] ) ); ?></span>
-					<span class="bouncer-stat-label"><?php esc_html_e( 'Emergencies', 'bouncer' ); ?></span>
-				</div>
-			</div>
-
-			<div class="bouncer-channels-status">
-				<h2><?php esc_html_e( 'Monitoring Channels', 'bouncer' ); ?></h2>
-				<table class="widefat striped">
-					<thead>
-						<tr>
-							<th><?php esc_html_e( 'Channel', 'bouncer' ); ?></th>
-							<th><?php esc_html_e( 'Status', 'bouncer' ); ?></th>
-						</tr>
-					</thead>
-					<tbody>
-						<tr>
-							<td><?php esc_html_e( 'Database Query Attribution', 'bouncer' ); ?></td>
-							<td><?php echo $db_dropin && ! $db_conflict ? '<span class="bouncer-status-active">&#9679; Active</span>' : '<span class="bouncer-status-inactive">&#9679; Inactive</span>'; ?></td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'Outbound HTTP Monitoring', 'bouncer' ); ?></td>
-							<td><?php echo $this->bouncer->get_setting( 'http_monitoring' ) ? '<span class="bouncer-status-active">&#9679; Active</span>' : '<span class="bouncer-status-inactive">&#9679; Inactive</span>'; ?></td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'Hook Registration Auditing', 'bouncer' ); ?></td>
-							<td><?php echo $this->bouncer->get_setting( 'hook_auditing' ) ? '<span class="bouncer-status-active">&#9679; Active</span>' : '<span class="bouncer-status-inactive">&#9679; Inactive</span>'; ?></td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'File Integrity Monitoring', 'bouncer' ); ?></td>
-							<td><?php echo $this->bouncer->get_setting( 'file_integrity' ) ? '<span class="bouncer-status-active">&#9679; Active</span>' : '<span class="bouncer-status-inactive">&#9679; Inactive</span>'; ?></td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'Quick Look (automatic)', 'bouncer' ); ?></td>
-							<td><span class="bouncer-status-active">&#9679; <?php esc_html_e( 'Always on', 'bouncer' ); ?></span></td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'Deep Dive (Claude)', 'bouncer' ); ?></td>
-							<td>
-								<?php
-								$deep = false;
-								if ( $this->bouncer->get_setting( 'ai_scanning' ) ) {
-									$deep = null !== $this->bouncer->get_ai_scanner_if_available();
-								}
-								echo $deep
-									? '<span class="bouncer-status-active">&#9679; ' . esc_html__( 'Active', 'bouncer' ) . '</span>'
-									: '<span class="bouncer-status-inactive">&#9679; ' . esc_html__( 'Off or needs a key', 'bouncer' ) . '</span>';
-								?>
-							</td>
-						</tr>
-						<tr>
-							<td><?php esc_html_e( 'REST unauthenticated write logging', 'bouncer' ); ?></td>
-							<td><?php echo $this->bouncer->get_setting( 'rest_monitoring' ) ? '<span class="bouncer-status-active">&#9679; Active</span>' : '<span class="bouncer-status-inactive">&#9679; Inactive</span>'; ?></td>
-						</tr>
-					</tbody>
-				</table>
-			</div>
+			<?php $this->render_dashboard_channel_grid(); ?>
 
 			<?php if ( ! empty( $plugin_summary ) ) : ?>
 			<div class="bouncer-plugin-summary">
-				<h2><?php esc_html_e( 'Plugin Activity (Last 7 Days)', 'bouncer' ); ?></h2>
+				<h2><?php esc_html_e( 'Who’s been chatty (last 7 days)', 'bouncer' ); ?></h2>
 				<table class="widefat striped">
 					<thead>
 						<tr>
@@ -631,11 +891,11 @@ class Bouncer_Admin {
 							<td><?php echo esc_html( $plugin->total_events ); ?></td>
 							<td>
 								<a href="<?php echo esc_url( bouncer_admin_url( 'events', array( 'plugin' => $plugin->plugin_slug ) ) ); ?>">
-									<?php esc_html_e( 'View Events', 'bouncer' ); ?>
+									<?php esc_html_e( 'See the log →', 'bouncer' ); ?>
 								</a>
 								|
 								<a href="<?php echo esc_url( bouncer_admin_url( 'manifests', array( 'plugin' => $plugin->plugin_slug ) ) ); ?>">
-									<?php esc_html_e( 'Manifest', 'bouncer' ); ?>
+									<?php esc_html_e( 'Cheat sheet →', 'bouncer' ); ?>
 								</a>
 							</td>
 						</tr>
@@ -659,11 +919,11 @@ class Bouncer_Admin {
 			<p class="description bouncer-ai-modes-lede">
 				<?php
 				if ( $ai_on && $deep_ok ) {
-					esc_html_e( 'Quick Look runs on your server for every scan. Deep Dive (Claude) is enabled and your Anthropic key is configured, so full scans can include AI-written analysis.', 'bouncer' );
+					esc_html_e( 'Quick Look runs on your server every time. Deep Dive is on and your key is set, so scans can add Claude’s longer plain-English notes.', 'bouncer' );
 				} elseif ( $ai_on && ! $deep_ok ) {
-					esc_html_e( 'Quick Look runs on your server. Deep Dive is switched on in Settings, but no Anthropic API key is available yet — add one under Settings → Connectors (or ANTHROPIC_API_KEY) to unlock AI summaries.', 'bouncer' );
+					esc_html_e( 'Quick Look still runs on your server. Deep Dive is toggled on, but there’s no Anthropic key yet—add one under Settings → Connectors (or ANTHROPIC_API_KEY) when you want the extra story.', 'bouncer' );
 				} else {
-					esc_html_e( 'Quick Look runs on your server for every scan. Deep Dive (Claude) is optional: turn it on under Tools → Bouncer → Settings when you want AI-written analysis.', 'bouncer' );
+					esc_html_e( 'Quick Look is always there on your server. Deep Dive is optional—flip it on under Bouncer → Settings when you want Claude’s take.', 'bouncer' );
 				}
 				?>
 			</p>
@@ -671,7 +931,7 @@ class Bouncer_Admin {
 				<div class="bouncer-ai-mode-card bouncer-ai-mode-quick">
 					<span class="dashicons dashicons-search" aria-hidden="true"></span>
 					<h3><?php esc_html_e( 'Quick Look', 'bouncer' ); ?></h3>
-					<p><?php esc_html_e( 'Static analysis on your server: risk score, capability hints, and plain-English bullets. No external API.', 'bouncer' ); ?></p>
+					<p><?php esc_html_e( 'Fast pass on your server: a score, a vibe check, and a few short bullets. No outside API.', 'bouncer' ); ?></p>
 				</div>
 				<div class="bouncer-ai-mode-card bouncer-ai-mode-deep">
 					<span class="dashicons dashicons-welcome-learn-more" aria-hidden="true"></span>
@@ -679,11 +939,11 @@ class Bouncer_Admin {
 					<p>
 						<?php
 						if ( $deep_ok ) {
-							esc_html_e( 'Anthropic Claude adds a longer narrative from structural fingerprints only (not raw source files), subject to Anthropic’s terms.', 'bouncer' );
+							esc_html_e( 'Claude adds a longer read from a compact sketch of the code—not the raw files—under Anthropic’s terms.', 'bouncer' );
 						} elseif ( $ai_on ) {
-							esc_html_e( 'Ready when an API key is configured in Settings → Connectors or via ANTHROPIC_API_KEY.', 'bouncer' );
+							esc_html_e( 'Waiting on an API key in Connectors or ANTHROPIC_API_KEY.', 'bouncer' );
 						} else {
-							esc_html_e( 'Optional: enable under Tools → Bouncer → Settings, then add your key in Settings → Connectors.', 'bouncer' );
+							esc_html_e( 'Optional: turn it on in Bouncer → Settings, then add your key in Connectors.', 'bouncer' );
 						}
 						?>
 					</p>
@@ -712,13 +972,13 @@ class Bouncer_Admin {
 		$url = bouncer_admin_url( 'manifests' );
 		?>
 		<div class="bouncer-installed-scan-panel">
-			<h2><?php esc_html_e( 'Plugin scans', 'bouncer' ); ?></h2>
+			<h2><?php esc_html_e( 'Plugin cheat sheets', 'bouncer' ); ?></h2>
 			<p class="description">
 				<?php
 				echo esc_html(
 					sprintf(
 						/* translators: 1: number of plugins with a stored manifest, 2: total installed plugins */
-						__( 'Bouncer sees %2$d installed plugin(s); %1$d have a stored Quick Look manifest right now.', 'bouncer' ),
+						__( 'You’ve got %2$d plugins installed; %1$d already have a Quick Look cheat sheet saved.', 'bouncer' ),
 						$have,
 						$n
 					)
@@ -726,7 +986,7 @@ class Bouncer_Admin {
 				?>
 			</p>
 			<p>
-				<a class="button button-primary" href="<?php echo esc_url( $url ); ?>"><?php esc_html_e( 'Open Manifests & scan tools', 'bouncer' ); ?></a>
+				<a class="button button-primary" href="<?php echo esc_url( $url ); ?>"><?php esc_html_e( 'Open Manifests & scanning', 'bouncer' ); ?></a>
 			</p>
 		</div>
 		<?php
@@ -805,25 +1065,25 @@ class Bouncer_Admin {
 				<p class="description">
 					<?php
 					if ( $n_inst < 1 ) {
-						esc_html_e( 'WordPress did not report any installed plugins in this site context.', 'bouncer' );
+						esc_html_e( 'WordPress isn’t listing any plugins in this context—odd, but it happens on some setups.', 'bouncer' );
 					} else {
 						echo esc_html(
 							sprintf(
 								/* translators: 1: plugins with a manifest, 2: total installed */
-								__( 'This site has %2$d installed plugin(s). %1$d have a Quick Look manifest saved; use Scan to refresh or create one.', 'bouncer' ),
+								__( '%2$d plugins live here; %1$d already have a Quick Look cheat sheet. Hit Scan anytime to refresh or make a new one.', 'bouncer' ),
 								$scanned,
 								$n_inst
 							)
 						);
 						if ( $deep_ok ) {
 							echo ' ';
-							esc_html_e( 'Deep Dive (Claude) will run on each scan while your API key is available.', 'bouncer' );
+							esc_html_e( 'Deep Dive will tag along on each scan while your key is available.', 'bouncer' );
 						} elseif ( $ai_on ) {
 							echo ' ';
-							esc_html_e( 'Deep Dive is enabled but no API key is configured — scans will refresh Quick Look only until you add a key under Settings → Connectors.', 'bouncer' );
+							esc_html_e( 'Deep Dive is on, but there’s no key yet—scans will still refresh Quick Look until you add one under Connectors.', 'bouncer' );
 						} else {
 							echo ' ';
-							esc_html_e( 'Deep Dive is off in Settings — scans only update Quick Look unless you enable it and add an Anthropic key.', 'bouncer' );
+							esc_html_e( 'Deep Dive is off in Settings—scans stick to Quick Look unless you enable it and add a key.', 'bouncer' );
 						}
 					}
 					?>
@@ -838,6 +1098,7 @@ class Bouncer_Admin {
 				<?php endif; ?>
 			</div>
 
+			<div class="bouncer-manifests-table-wrap">
 			<table class="widefat striped">
 				<thead>
 					<tr>
@@ -852,13 +1113,14 @@ class Bouncer_Admin {
 				</thead>
 				<tbody>
 					<?php if ( $n_inst < 1 ) : ?>
-						<tr><td colspan="7"><?php esc_html_e( 'No installed plugins found.', 'bouncer' ); ?></td></tr>
+						<tr class="bouncer-risk-row--none"><td colspan="7"><?php esc_html_e( 'No installed plugins found.', 'bouncer' ); ?></td></tr>
 					<?php else : ?>
 						<?php foreach ( $installed as $slug => $info ) : ?>
 							<?php
-							$m = $by_slug[ $slug ] ?? null;
+							$m        = $by_slug[ $slug ] ?? null;
+							$risk_row = $m ? 'bouncer-risk-row--' . $this->risk_row_class_for_score( (int) $m->risk_score ) : 'bouncer-risk-row--none';
 							?>
-						<tr>
+						<tr class="<?php echo esc_attr( $risk_row ); ?>">
 							<td>
 								<strong><?php echo esc_html( $info['name'] ); ?></strong>
 								<div class="description"><?php echo esc_html( $slug ); ?></div>
@@ -868,7 +1130,7 @@ class Bouncer_Admin {
 								if ( $info['active'] ) {
 									echo '<span class="bouncer-status-active">&#9679; ' . esc_html__( 'Active', 'bouncer' ) . '</span>';
 								} else {
-									echo '<span class="bouncer-status-inactive">&#9679; ' . esc_html__( 'Inactive', 'bouncer' ) . '</span>';
+									echo '<span class="bouncer-status-inactive">&#9679; ' . esc_html__( 'Resting', 'bouncer' ) . '</span>';
 								}
 								?>
 							</td>
@@ -876,10 +1138,15 @@ class Bouncer_Admin {
 							<td>
 								<?php
 								if ( $m ) {
+									$band = $this->risk_row_class_for_score( (int) $m->risk_score );
+									echo '<div class="bouncer-at-a-glance-cell">';
+									echo '<span class="bouncer-risk-dot bouncer-risk-dot--' . esc_attr( $band ) . '" aria-hidden="true"></span>';
+									echo '<div class="bouncer-at-a-glance-cell__text">';
 									echo wp_kses_post( $this->render_risk_badge( (int) $m->risk_score ) );
 									echo '<div class="bouncer-quick-line">' . esc_html( wp_trim_words( Bouncer_AI_Experience::headline_for_score( (int) $m->risk_score ), 14, '…' ) ) . '</div>';
+									echo '</div></div>';
 								} else {
-									echo '<em>' . esc_html__( 'Not scanned yet', 'bouncer' ) . '</em>';
+									echo '<div class="bouncer-at-a-glance-cell"><span class="bouncer-risk-dot" aria-hidden="true"></span><div class="bouncer-at-a-glance-cell__text"><em>' . esc_html__( 'Not scanned yet', 'bouncer' ) . '</em></div></div>';
 								}
 								?>
 							</td>
@@ -913,6 +1180,7 @@ class Bouncer_Admin {
 					<?php endif; ?>
 				</tbody>
 			</table>
+			</div>
 			<?php
 			$orphans = array_diff( array_keys( $by_slug ), array_keys( $installed ) );
 			if ( ! empty( $orphans ) ) :
@@ -948,22 +1216,22 @@ class Bouncer_Admin {
 	private function render_single_manifest( $plugin_slug ) {
 		if ( ! Bouncer_Installed_Plugins::is_valid_slug_format( $plugin_slug ) ) {
 			?>
-			<p><a href="<?php echo esc_url( bouncer_admin_url( 'manifests' ) ); ?>" class="button"><?php esc_html_e( '← All manifests', 'bouncer' ); ?></a></p>
-			<div class="notice notice-error"><p><?php esc_html_e( 'That plugin identifier is not valid.', 'bouncer' ); ?></p></div>
+			<p><a href="<?php echo esc_url( bouncer_admin_url( 'manifests' ) ); ?>" class="button"><?php esc_html_e( '← Back to all cheat sheets', 'bouncer' ); ?></a></p>
+			<div class="notice notice-error"><p><?php esc_html_e( 'That plugin name doesn’t look right.', 'bouncer' ); ?></p></div>
 			<?php
 			return;
 		}
 
 		if ( ! Bouncer_Installed_Plugins::is_installed_slug( $plugin_slug ) ) {
 			?>
-			<p><a href="<?php echo esc_url( bouncer_admin_url( 'manifests' ) ); ?>" class="button"><?php esc_html_e( '← All manifests', 'bouncer' ); ?></a></p>
+			<p><a href="<?php echo esc_url( bouncer_admin_url( 'manifests' ) ); ?>" class="button"><?php esc_html_e( '← Back to all cheat sheets', 'bouncer' ); ?></a></p>
 			<div class="notice notice-error">
 				<p>
 					<?php
 					echo esc_html(
 						sprintf(
 							/* translators: %s: plugin slug */
-							__( 'No installed plugin uses the slug “%s”. Open Manifests to pick from your installed plugins.', 'bouncer' ),
+							__( 'Nothing installed uses “%s” right now. Pop back to Manifests and pick from the list.', 'bouncer' ),
 							$plugin_slug
 						)
 					);
@@ -981,21 +1249,21 @@ class Bouncer_Admin {
 
 		?>
 			<p>
-				<a href="<?php echo esc_url( bouncer_admin_url( 'manifests' ) ); ?>" class="button"><?php esc_html_e( '← All manifests', 'bouncer' ); ?></a>
+				<a href="<?php echo esc_url( bouncer_admin_url( 'manifests' ) ); ?>" class="button"><?php esc_html_e( '← Back to all cheat sheets', 'bouncer' ); ?></a>
 			</p>
 			<h2>
 				<?php
 				/* translators: 1: plugin name, 2: slug */
-				printf( esc_html__( 'Manifest: %1$s (%2$s)', 'bouncer' ), esc_html( $info['name'] ), esc_html( $plugin_slug ) );
+				printf( esc_html__( 'Cheat sheet: %1$s (%2$s)', 'bouncer' ), esc_html( $info['name'] ), esc_html( $plugin_slug ) );
 				?>
 			</h2>
 
 			<?php if ( ! $manifest ) : ?>
 				<div class="notice notice-warning">
-					<p><?php esc_html_e( 'This plugin is installed, but Bouncer has not saved a Quick Look manifest for it yet.', 'bouncer' ); ?></p>
+					<p><?php esc_html_e( 'This plugin is here, but we haven’t saved a Quick Look cheat sheet for it yet.', 'bouncer' ); ?></p>
 				</div>
 				<button type="button" class="button button-primary bouncer-rescan" data-plugin="<?php echo esc_attr( $plugin_slug ); ?>">
-					<?php esc_html_e( 'Run first scan', 'bouncer' ); ?>
+					<?php esc_html_e( 'Run the first scan', 'bouncer' ); ?>
 				</button>
 			<?php else : ?>
 				<?php
@@ -1009,7 +1277,7 @@ class Bouncer_Admin {
 						echo esc_html(
 							sprintf(
 								/* translators: 1: score 0-100, 2: plain sentence */
-								__( 'Bouncer score: %1$d/100 — %2$s', 'bouncer' ),
+								__( 'Bouncer vibe score: %1$d/100 — %2$s', 'bouncer' ),
 								$ql['score'],
 								$ql['score_sentence']
 							)
@@ -1026,7 +1294,7 @@ class Bouncer_Admin {
 
 				<?php if ( ! empty( $manifest['ai_assessment'] ) ) : ?>
 				<details class="bouncer-deep-dive-block">
-					<summary><?php esc_html_e( 'Deep Dive (Claude) — full story (tap to expand)', 'bouncer' ); ?></summary>
+					<summary><?php esc_html_e( 'Deep Dive — Claude’s full story (tap to open)', 'bouncer' ); ?></summary>
 					<div class="bouncer-deep-dive-body">
 						<?php echo esc_html( $manifest['ai_assessment'] ); ?>
 					</div>
@@ -1035,17 +1303,17 @@ class Bouncer_Admin {
 				<p class="description bouncer-deep-dive-empty">
 					<?php
 					if ( ! $ai_on ) {
-						esc_html_e( 'No Deep Dive text on file. Turn on Deep Dive under Tools → Bouncer → Settings, add an Anthropic key, then run the scan again.', 'bouncer' );
+						esc_html_e( 'No Deep Dive write-up saved yet. Turn it on under Bouncer → Settings, add your Anthropic key, then scan again.', 'bouncer' );
 					} elseif ( $ai_on && ! $deep_ok ) {
-						esc_html_e( 'No Deep Dive text on file. Deep Dive is enabled, but no API key is available — configure Settings → Connectors (or ANTHROPIC_API_KEY), then scan again.', 'bouncer' );
+						esc_html_e( 'Deep Dive is on, but there’s no key handy—add one in Connectors (or ANTHROPIC_API_KEY), then scan again.', 'bouncer' );
 					} else {
-						esc_html_e( 'No Deep Dive text on file yet. Your key is configured — click “Run Quick Look again” below to generate it.', 'bouncer' );
+						esc_html_e( 'No Deep Dive story yet, even though your key is set—tap “Run Quick Look again” below to generate it.', 'bouncer' );
 					}
 					?>
 				</p>
 				<?php endif; ?>
 
-				<h2><?php esc_html_e( 'Technical details (for troubleshooting)', 'bouncer' ); ?></h2>
+				<h2><?php esc_html_e( 'Under the hood (for support & nerds)', 'bouncer' ); ?></h2>
 				<pre class="bouncer-manifest-json"><?php echo esc_html( wp_json_encode( $manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
 
 				<button type="button" class="button bouncer-rescan" data-plugin="<?php echo esc_attr( $plugin_slug ); ?>">
@@ -1054,11 +1322,11 @@ class Bouncer_Admin {
 				<span class="description" style="margin-left:8px;">
 					<?php
 					if ( $deep_ok ) {
-						esc_html_e( 'This scan refreshes Quick Look and runs Deep Dive (Claude) because your API key is available.', 'bouncer' );
+						esc_html_e( 'This run refreshes Quick Look and asks Claude for a new Deep Dive because your key is ready.', 'bouncer' );
 					} elseif ( $ai_on ) {
-						esc_html_e( 'This scan refreshes Quick Look only until an Anthropic API key is configured.', 'bouncer' );
+						esc_html_e( 'This run refreshes Quick Look; Deep Dive waits until a key shows up.', 'bouncer' );
 					} else {
-						esc_html_e( 'This scan refreshes Quick Look. Enable Deep Dive in Settings to add Claude analysis.', 'bouncer' );
+						esc_html_e( 'This run refreshes Quick Look. Turn on Deep Dive in Settings if you want Claude too.', 'bouncer' );
 					}
 					?>
 				</span>
@@ -1079,64 +1347,69 @@ class Bouncer_Admin {
 				wp_referer_field();
 				?>
 
+				<div class="bouncer-settings-section">
 				<h2><?php esc_html_e( 'Operating Mode', 'bouncer' ); ?></h2>
 				<table class="form-table">
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Mode', 'bouncer' ); ?></th>
 						<td>
 							<select name="bouncer_mode">
-								<option value="monitor" <?php selected( get_option( 'bouncer_mode' ), 'monitor' ); ?>><?php esc_html_e( 'Monitor — Log everything, block nothing', 'bouncer' ); ?></option>
-								<option value="enforce" <?php selected( get_option( 'bouncer_mode' ), 'enforce' ); ?>><?php esc_html_e( 'Enforce — Actively block policy violations', 'bouncer' ); ?></option>
+								<option value="monitor" <?php selected( get_option( 'bouncer_mode' ), 'monitor' ); ?>><?php esc_html_e( 'Monitor — watch and learn, don’t block yet', 'bouncer' ); ?></option>
+								<option value="enforce" <?php selected( get_option( 'bouncer_mode' ), 'enforce' ); ?>><?php esc_html_e( 'Enforce — step in when something breaks the rules', 'bouncer' ); ?></option>
 							</select>
-							<p class="description"><?php esc_html_e( 'Start in Monitor mode to learn your plugins\' behavior before enabling enforcement.', 'bouncer' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Start in Monitor so Bouncer learns what “normal” looks like before you turn on stronger responses.', 'bouncer' ); ?></p>
 						</td>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Sampling Rate', 'bouncer' ); ?></th>
 						<td>
 							<input type="number" name="bouncer_sampling_rate" min="0" max="100" value="<?php echo esc_attr( get_option( 'bouncer_sampling_rate', 100 ) ); ?>" /> %
-							<p class="description"><?php esc_html_e( 'Percentage of requests to monitor. Use 100% in staging, lower in production for performance.', 'bouncer' ); ?></p>
+							<p class="description"><?php esc_html_e( 'What share of visits get the full watch. Use 100% on staging; dial back in production if you need less overhead.', 'bouncer' ); ?></p>
 						</td>
 					</tr>
 				</table>
+				</div>
 
+				<div class="bouncer-settings-section">
 				<h2><?php esc_html_e( 'Monitoring Channels', 'bouncer' ); ?></h2>
 				<table class="form-table">
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Database Monitoring', 'bouncer' ); ?></th>
-						<td><label><input type="checkbox" name="bouncer_db_monitoring" value="1" <?php checked( get_option( 'bouncer_db_monitoring' ) ); ?> /> <?php esc_html_e( 'Monitor database queries and attribute to plugins', 'bouncer' ); ?></label></td>
+						<td><label><input type="checkbox" name="bouncer_db_monitoring" value="1" <?php checked( get_option( 'bouncer_db_monitoring' ) ); ?> /> <?php esc_html_e( 'Watch the database and say which plugin touched it', 'bouncer' ); ?></label></td>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'HTTP Monitoring', 'bouncer' ); ?></th>
-						<td><label><input type="checkbox" name="bouncer_http_monitoring" value="1" <?php checked( get_option( 'bouncer_http_monitoring' ) ); ?> /> <?php esc_html_e( 'Monitor outbound HTTP requests', 'bouncer' ); ?></label></td>
+						<td><label><input type="checkbox" name="bouncer_http_monitoring" value="1" <?php checked( get_option( 'bouncer_http_monitoring' ) ); ?> /> <?php esc_html_e( 'Watch plugins calling out to the web', 'bouncer' ); ?></label></td>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Hook Auditing', 'bouncer' ); ?></th>
-						<td><label><input type="checkbox" name="bouncer_hook_auditing" value="1" <?php checked( get_option( 'bouncer_hook_auditing' ) ); ?> /> <?php esc_html_e( 'Audit hook registrations for anomalies', 'bouncer' ); ?></label></td>
+						<td><label><input type="checkbox" name="bouncer_hook_auditing" value="1" <?php checked( get_option( 'bouncer_hook_auditing' ) ); ?> /> <?php esc_html_e( 'Notice unusual hook sign-ups', 'bouncer' ); ?></label></td>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'File Integrity', 'bouncer' ); ?></th>
-						<td><label><input type="checkbox" name="bouncer_file_integrity" value="1" <?php checked( get_option( 'bouncer_file_integrity' ) ); ?> /> <?php esc_html_e( 'Monitor plugin files for unauthorized changes', 'bouncer' ); ?></label></td>
+						<td><label><input type="checkbox" name="bouncer_file_integrity" value="1" <?php checked( get_option( 'bouncer_file_integrity' ) ); ?> /> <?php esc_html_e( 'Spot surprise edits to plugin files', 'bouncer' ); ?></label></td>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'REST monitoring', 'bouncer' ); ?></th>
-						<td><label><input type="checkbox" name="bouncer_rest_monitoring" value="1" <?php checked( get_option( 'bouncer_rest_monitoring', true ) ); ?> /> <?php esc_html_e( 'Log unauthenticated POST/PUT/PATCH/DELETE REST requests', 'bouncer' ); ?></label></td>
+						<td><label><input type="checkbox" name="bouncer_rest_monitoring" value="1" <?php checked( get_option( 'bouncer_rest_monitoring', true ) ); ?> /> <?php esc_html_e( 'Log write-style REST tries from visitors who aren’t logged in', 'bouncer' ); ?></label></td>
 					</tr>
 				</table>
+				</div>
 
+				<div class="bouncer-settings-section">
 				<h2><?php esc_html_e( 'Smarter summaries (optional)', 'bouncer' ); ?></h2>
-				<p class="description"><?php esc_html_e( 'Quick Look always runs on your server. Turn on Deep Dive for Claude (Anthropic) when you add a key.', 'bouncer' ); ?></p>
+				<p class="description"><?php esc_html_e( 'Quick Look always runs on your server. Flip on Deep Dive when you want Claude’s longer write-up and you’ve added a key.', 'bouncer' ); ?></p>
 				<table class="form-table">
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Deep Dive (Claude)', 'bouncer' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="bouncer_ai_scanning" value="1" <?php checked( get_option( 'bouncer_ai_scanning' ) ); ?> /> <?php esc_html_e( 'Explain plugin updates in plain English via Anthropic Claude when you add a key', 'bouncer' ); ?></label>
+							<label><input type="checkbox" name="bouncer_ai_scanning" value="1" <?php checked( get_option( 'bouncer_ai_scanning' ) ); ?> /> <?php esc_html_e( 'Let Claude add a friendly long read after scans (when your key is set)', 'bouncer' ); ?></label>
 							<p class="description">
 								<?php
 								echo wp_kses_post(
 									sprintf(
 										/* translators: 1: Anthropic terms URL, 2: privacy URL */
-										__( 'Deep Dive sends structural fingerprints (not your source files) to Anthropic when it runs. Their <a href="%1$s" rel="noopener noreferrer" target="_blank">Commercial Terms</a> and <a href="%2$s" rel="noopener noreferrer" target="_blank">Privacy Policy</a> apply.', 'bouncer' ),
+										__( 'Deep Dive sends a compact structural sketch—not your raw PHP—to Anthropic. Their <a href="%1$s" rel="noopener noreferrer" target="_blank">Commercial Terms</a> and <a href="%2$s" rel="noopener noreferrer" target="_blank">Privacy Policy</a> apply.', 'bouncer' ),
 										'https://www.anthropic.com/legal/commercial-terms',
 										'https://www.anthropic.com/legal/privacy'
 									)
@@ -1156,10 +1429,10 @@ class Bouncer_Admin {
 							$source = $scanner->get_api_key_source();
 
 							$source_labels = array(
-								'connector_env'      => __( 'Connected via environment variable (ANTHROPIC_API_KEY)', 'bouncer' ),
-								'connector_constant' => __( 'Connected via PHP constant (ANTHROPIC_API_KEY)', 'bouncer' ),
-								'connector_db'       => __( 'Connected via Settings → Connectors', 'bouncer' ),
-								'none'               => __( 'No key yet — Deep Dive is on pause', 'bouncer' ),
+								'connector_env'      => __( 'Key from the server environment (ANTHROPIC_API_KEY)', 'bouncer' ),
+								'connector_constant' => __( 'Key from a PHP constant (ANTHROPIC_API_KEY)', 'bouncer' ),
+								'connector_db'       => __( 'Key saved under Settings → Connectors', 'bouncer' ),
+								'none'               => __( 'No key yet — Deep Dive is napping', 'bouncer' ),
 							);
 
 							$label   = $source_labels[ $source ] ?? $source_labels['none'];
@@ -1176,7 +1449,7 @@ class Bouncer_Admin {
 								<?php
 								printf(
 									/* translators: %s: URL to Connectors settings page */
-									wp_kses_post( __( 'Add or manage your Anthropic API key under <a href="%s">Settings &rarr; Connectors</a>, or use the ANTHROPIC_API_KEY environment variable / PHP constant.', 'bouncer' ) ),
+									wp_kses_post( __( 'Drop your Anthropic key in <a href="%s">Settings &rarr; Connectors</a>, or use ANTHROPIC_API_KEY in the environment / as a PHP constant.', 'bouncer' ) ),
 									esc_url( admin_url( 'options-general.php?page=connectors' ) )
 								);
 								?>
@@ -1184,7 +1457,9 @@ class Bouncer_Admin {
 						</td>
 					</tr>
 				</table>
+				</div>
 
+				<div class="bouncer-settings-section">
 				<h2><?php esc_html_e( 'Notifications', 'bouncer' ); ?></h2>
 				<table class="form-table">
 					<tr>
@@ -1195,14 +1470,14 @@ class Bouncer_Admin {
 						<th scope="row"><?php esc_html_e( 'Notify On', 'bouncer' ); ?></th>
 						<td>
 							<label><input type="checkbox" name="bouncer_notify_on_warning" value="1" <?php checked( get_option( 'bouncer_notify_on_warning' ) ); ?> /> <?php esc_html_e( 'Warnings', 'bouncer' ); ?></label><br>
-							<label><input type="checkbox" name="bouncer_notify_on_critical" value="1" <?php checked( get_option( 'bouncer_notify_on_critical' ) ); ?> /> <?php esc_html_e( 'Critical events', 'bouncer' ); ?></label><br>
-							<label><input type="checkbox" name="bouncer_notify_on_emergency" value="1" <?php checked( get_option( 'bouncer_notify_on_emergency' ) ); ?> /> <?php esc_html_e( 'Emergencies', 'bouncer' ); ?></label>
+							<label><input type="checkbox" name="bouncer_notify_on_critical" value="1" <?php checked( get_option( 'bouncer_notify_on_critical' ) ); ?> /> <?php esc_html_e( 'Serious flags', 'bouncer' ); ?></label><br>
+							<label><input type="checkbox" name="bouncer_notify_on_emergency" value="1" <?php checked( get_option( 'bouncer_notify_on_emergency' ) ); ?> /> <?php esc_html_e( 'Big deals', 'bouncer' ); ?></label>
 						</td>
 					</tr>
 					<tr>
 						<th scope="row"><?php esc_html_e( 'Email digest', 'bouncer' ); ?></th>
 						<td>
-							<label><input type="checkbox" name="bouncer_digest_enabled" value="1" <?php checked( get_option( 'bouncer_digest_enabled' ) ); ?> /> <?php esc_html_e( 'Send periodic severity summaries to the email above', 'bouncer' ); ?></label>
+							<label><input type="checkbox" name="bouncer_digest_enabled" value="1" <?php checked( get_option( 'bouncer_digest_enabled' ) ); ?> /> <?php esc_html_e( 'Email a periodic “how we’re doing” summary to the address above', 'bouncer' ); ?></label>
 							<p class="description">
 								<label for="bouncer-digest-frequency"><?php esc_html_e( 'Frequency', 'bouncer' ); ?></label>
 								<select name="bouncer_digest_frequency" id="bouncer-digest-frequency">
@@ -1220,8 +1495,8 @@ class Bouncer_Admin {
 							<p class="description"><?php esc_html_e( 'POST JSON batches of new events. Empty disables delivery.', 'bouncer' ); ?></p>
 							<label for="bouncer-webhook-secret"><?php esc_html_e( 'Signing secret', 'bouncer' ); ?></label><br />
 							<input type="password" name="bouncer_webhook_secret" id="bouncer-webhook-secret" class="regular-text" value="<?php echo esc_attr( get_option( 'bouncer_webhook_secret', '' ) ); ?>" autocomplete="off" />
-							<p class="description"><?php esc_html_e( 'Optional. When set, Bouncer sends header X-Bouncer-Signature: HMAC-SHA256 of the raw JSON body.', 'bouncer' ); ?></p>
-							<label for="bouncer-webhook-min-sev"><?php esc_html_e( 'Minimum severity for webhooks', 'bouncer' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Optional. When set, requests include X-Bouncer-Signature so your endpoint can verify they’re really from Bouncer.', 'bouncer' ); ?></p>
+							<label for="bouncer-webhook-min-sev"><?php esc_html_e( 'Only send webhooks from this level up', 'bouncer' ); ?></label>
 							<select name="bouncer_webhook_min_severity" id="bouncer-webhook-min-sev">
 								<?php
 								$wm = get_option( 'bouncer_webhook_min_severity', 'warning' );
@@ -1238,7 +1513,9 @@ class Bouncer_Admin {
 						</td>
 					</tr>
 				</table>
+				</div>
 
+				<div class="bouncer-settings-section">
 				<h2><?php esc_html_e( 'Data', 'bouncer' ); ?></h2>
 				<table class="form-table">
 					<tr>
@@ -1248,6 +1525,7 @@ class Bouncer_Admin {
 						</td>
 					</tr>
 				</table>
+				</div>
 
 				<?php submit_button(); ?>
 			</form>
@@ -1298,7 +1576,7 @@ class Bouncer_Admin {
 		$manifest = $this->bouncer->manifest->get_manifest( $slug );
 
 		if ( ! $manifest ) {
-			echo '<span class="bouncer-badge bouncer-badge-unknown">' . esc_html__( 'Unscanned', 'bouncer' ) . '</span>';
+			echo '<span class="bouncer-badge bouncer-badge-unknown">' . esc_html__( 'No cheat sheet yet', 'bouncer' ) . '</span>';
 			return;
 		}
 
@@ -1361,7 +1639,7 @@ class Bouncer_Admin {
 				printf(
 					wp_kses_post(
 						/* translators: %s: URL to the Connectors settings admin page. */
-						__( '<strong>Bouncer:</strong> Deep Dive is on, but no Anthropic API key is configured yet. Quick Look still works. Add a key in <a href="%s">Settings → Connectors</a> (or set ANTHROPIC_API_KEY in the environment / as a PHP constant).', 'bouncer' )
+						__( '<strong>Bouncer:</strong> Deep Dive is switched on, but there’s no Anthropic key yet—Quick Look still runs fine. Add one in <a href="%s">Settings → Connectors</a> (or ANTHROPIC_API_KEY in the environment / as a PHP constant).', 'bouncer' )
 					),
 					esc_url( admin_url( 'options-general.php?page=connectors' ) )
 				);

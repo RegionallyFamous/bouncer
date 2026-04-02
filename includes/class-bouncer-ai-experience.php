@@ -17,19 +17,49 @@ class Bouncer_AI_Experience {
 	public const TRAFFIC_ALERT = 'alert';
 
 	/**
+	 * Risk band for AI / Deep Dive alignment (matches Quick Look numeric score).
+	 *
+	 * @return string low|medium|high
+	 */
+	public static function severity_band_for_score( int $score ): string {
+		if ( $score <= 20 ) {
+			return 'low';
+		}
+		if ( $score <= 80 ) {
+			return 'medium';
+		}
+
+		return 'high';
+	}
+
+	/**
+	 * Translated Low / Medium / High label for the same bands as severity_band_for_score().
+	 */
+	public static function severity_label_for_score( int $score ): string {
+		if ( $score <= 20 ) {
+			return __( 'Low', 'bouncer' );
+		}
+		if ( $score <= 80 ) {
+			return __( 'Medium', 'bouncer' );
+		}
+
+		return __( 'High', 'bouncer' );
+	}
+
+	/**
 	 * One-line verdict from risk score only (e.g. manifest list table).
 	 */
 	public static function headline_for_score( int $score ): string {
 		if ( $score <= 20 ) {
-			return __( 'Nothing spicy detected — routine footprint.', 'bouncer' );
+			return __( 'Pretty chill — looks like everyday plugin stuff.', 'bouncer' );
 		}
 		if ( $score <= 50 ) {
-			return __( 'Mostly fine — worth a quick skim.', 'bouncer' );
+			return __( 'Mostly mellow — still worth a quick scroll.', 'bouncer' );
 		}
 		if ( $score <= 80 ) {
-			return __( 'Heads up — a few sharp edges here.', 'bouncer' );
+			return __( 'A few eyebrow-raisers — give it a closer read.', 'bouncer' );
 		}
-		return __( 'Red-flag territory — take a close look.', 'bouncer' );
+		return __( 'Strong signals — worth a careful look before you shrug it off.', 'bouncer' );
 	}
 
 	/**
@@ -53,15 +83,15 @@ class Bouncer_AI_Experience {
 	 */
 	public static function score_sentence( int $score ): string {
 		if ( $score <= 20 ) {
-			return __( 'Risk looks low based on what Bouncer saw in the structure check.', 'bouncer' );
+			return __( 'The automatic pass didn’t see much that worries us.', 'bouncer' );
 		}
 		if ( $score <= 50 ) {
-			return __( 'Risk is medium — a mix of normal plugin stuff and a few things to notice.', 'bouncer' );
+			return __( 'There’s a little spice—normal for many plugins, just know it’s there.', 'bouncer' );
 		}
 		if ( $score <= 80 ) {
-			return __( 'Risk is elevated — several signals bumped the score.', 'bouncer' );
+			return __( 'Several things stacked up—nothing automatic says “panic,” but stay curious.', 'bouncer' );
 		}
-		return __( 'Risk is high — multiple strong signals in the structure check.', 'bouncer' );
+		return __( 'Quite a few signals fired—treat this one as worth a human second opinion.', 'bouncer' );
 	}
 
 	/**
@@ -75,10 +105,10 @@ class Bouncer_AI_Experience {
 		$bullets = self::build_bullets( $manifest );
 
 		if ( count( $bullets ) < 1 ) {
-			$bullets[] = __( 'No dramatic patterns jumped out in the automatic pass.', 'bouncer' );
+			$bullets[] = __( 'Nothing dramatic jumped out in the quick automatic pass.', 'bouncer' );
 		}
 		if ( count( $bullets ) < 2 ) {
-			$bullets[] = __( 'Keep an eye on the event log after updates — real behavior matters most.', 'bouncer' );
+			$bullets[] = __( 'After updates, peek the event log—what happens live beats any static score.', 'bouncer' );
 		}
 		$bullets = array_slice( $bullets, 0, 3 );
 
@@ -111,35 +141,35 @@ class Bouncer_AI_Experience {
 		$out = array();
 
 		if ( ! empty( $apis['uses_eval'] ) ) {
-			$out[] = __( 'Uses dynamic code execution — powerful, so make sure you trust updates from the author.', 'bouncer' );
+			$out[] = __( 'Can run changeable code on the fly—handy, but only if you trust the author’s updates.', 'bouncer' );
 		}
 		if ( ! empty( $apis['uses_exec'] ) ) {
-			$out[] = __( 'Can run system-level commands — double-check you expect that from this plugin.', 'bouncer' );
+			$out[] = __( 'Can ask the server to run commands—fine for some tools, surprising for others.', 'bouncer' );
 		}
 		if ( ! empty( $apis['uses_raw_curl'] ) ) {
-			$out[] = __( 'Makes low-level network calls outside WordPress’s usual helpers — not automatically bad, but worth knowing.', 'bouncer' );
+			$out[] = __( 'Talks to the network without WordPress’s usual wrappers—not evil, just “know it’s there.”', 'bouncer' );
 		}
 
 		$writes = isset( $db['write'] ) && is_array( $db['write'] ) ? $db['write'] : array();
 		$sensitive = array_intersect( $writes, array( 'users', 'usermeta', 'options' ) );
 		if ( ! empty( $sensitive ) ) {
-			$out[] = __( 'Writes to sensitive site tables (users or settings) — normal for some plugins, unusual for others.', 'bouncer' );
+			$out[] = __( 'Touches member or site-setting tables—common for big plugins, odd for tiny ones.', 'bouncer' );
 		}
 
 		$n_http = count( $http );
 		if ( $n_http > 5 ) {
-			$out[] = __( 'Talks to many different domains — fine for suites and connectors, odd for a tiny plugin.', 'bouncer' );
+			$out[] = __( 'Phones a lot of different domains—normal for suites, quirky for a one-trick plugin.', 'bouncer' );
 		} elseif ( $n_http > 2 ) {
-			$out[] = __( 'Reaches out to several domains — matches many modern plugins that use APIs or CDNs.', 'bouncer' );
+			$out[] = __( 'Checks in with a handful of domains—pretty normal for anything with APIs or CDNs.', 'bouncer' );
 		}
 
 		$sh = isset( $hooks['sensitive_hooks'] ) && is_array( $hooks['sensitive_hooks'] ) ? $hooks['sensitive_hooks'] : array();
 		if ( count( $sh ) > 2 ) {
-			$out[] = __( 'Hooks deeply into login and account flows — common for security and membership plugins.', 'bouncer' );
+			$out[] = __( 'Plugs into login and account flows a lot—typical for security and membership tools.', 'bouncer' );
 		}
 
 		if ( count( $susp ) > 0 ) {
-			$out[] = __( 'Some patterns looked like encoding or obfuscation — often harmless, sometimes worth a second look.', 'bouncer' );
+			$out[] = __( 'Saw some dense or encoded-looking bits—usually fine, occasionally worth a human peek.', 'bouncer' );
 		}
 
 		return $out;

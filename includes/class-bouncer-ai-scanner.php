@@ -189,7 +189,11 @@ class Bouncer_Ai_Scanner {
 		}
 
 		$static_manifest = $this->manifest->get_manifest( $plugin_slug );
-		$prompt          = $this->build_prompt( $plugin_slug, $fingerprint, $static_manifest );
+		if ( ! is_array( $static_manifest ) ) {
+			$static_manifest = array( 'risk_score' => 0 );
+		}
+
+		$prompt = $this->build_prompt( $plugin_slug, $fingerprint, $static_manifest );
 		$response        = $this->call_api( $prompt, $api_key );
 
 		if ( null === $response ) {
@@ -204,7 +208,7 @@ class Bouncer_Ai_Scanner {
 			return null;
 		}
 
-		$result = $this->parse_response( $response );
+		$result = $this->parse_response( $response, $static_manifest );
 		if ( ! $result ) {
 			return null;
 		}
@@ -339,13 +343,21 @@ class Bouncer_Ai_Scanner {
 		$fp_json = wp_json_encode( $fp, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
 		$m_json  = $manifest ? wp_json_encode( $manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) : 'None';
 
+		$score = is_array( $manifest ) ? (int) ( $manifest['risk_score'] ?? 0 ) : 0;
+		$band  = class_exists( 'Bouncer_AI_Experience' )
+			? Bouncer_AI_Experience::severity_band_for_score( $score )
+			: 'low';
+
 		$prompt  = "You are a WordPress plugin security analyst for Bouncer. Analyze this structural fingerprint (no source code — metadata only).\n\n";
 		$prompt .= "## Plugin: {$slug}\n\n";
 		$prompt .= "## Structural Fingerprint\n```json\n{$fp_json}\n```\n\n";
 		$prompt .= "## Existing Static Manifest\n```json\n{$m_json}\n```\n\n";
+		$prompt .= "## Quick Look (static analyzer — source of truth)\n";
+		$prompt .= "risk_score = {$score} (0-100). You MUST set JSON field \"risk_level\" to \"{$band}\" exactly: low if score<=20, medium if 21-80, high if >80.\n";
+		$prompt .= "plain_language_report and risk_explanation must NOT contradict that band. Example: if the band is low, do not write \"medium risk\" or \"high risk\" as the overall verdict; you may still describe broad system access when it is normal for a trusted plugin type (e.g. security tools).\n\n";
 		$prompt .= "## Tasks\n";
 		$prompt .= "1. **Summary**: 2-3 sentences describing what this plugin does based on evidence.\n";
-		$prompt .= "2. **Risk**: Rate \"low\", \"medium\", or \"high\" with explanation.\n";
+		$prompt .= "2. **Risk**: risk_level MUST match the Quick Look band above; use risk_explanation for nuance.\n";
 		$prompt .= "3. **Concerns**: Security concerns ranked by severity.\n";
 		$prompt .= "4. **Manifest refinements**: Suggested additions/corrections.\n\n";
 		$prompt .= "Respond ONLY in JSON (no markdown, no preamble):\n";
@@ -406,17 +418,21 @@ class Bouncer_Ai_Scanner {
 		return $data['content'][0]['text'] ?? null;
 	}
 
-	private function parse_response( string $response ): ?array {
+	private function parse_response( string $response, ?array $static_manifest = null ): ?array {
 		$clean  = preg_replace( '/^```(?:json)?\s*/m', '', $response );
 		$clean  = preg_replace( '/\s*```$/m', '', $clean );
 		$parsed = json_decode( trim( $clean ), true );
 
 		if ( is_array( $parsed ) && isset( $parsed['risk_level'] ) ) {
+			$this->align_ai_risk_level_to_quick_look( $parsed, $static_manifest );
+
 			return $parsed;
 		}
 		if ( preg_match( '/\{[\s\S]*\}/', $response, $m ) ) {
 			$parsed = json_decode( $m[0], true );
 			if ( is_array( $parsed ) && isset( $parsed['risk_level'] ) ) {
+				$this->align_ai_risk_level_to_quick_look( $parsed, $static_manifest );
+
 				return $parsed;
 			}
 		}
@@ -424,9 +440,45 @@ class Bouncer_Ai_Scanner {
 		return null;
 	}
 
+	/**
+	 * Force risk_level to match Quick Look score so UI and logs stay consistent.
+	 *
+	 * @param array<string, mixed> $parsed          Parsed API JSON (mutated).
+	 * @param array<string, mixed>|null $static_manifest Manifest used for the scan.
+	 */
+	private function align_ai_risk_level_to_quick_look( array &$parsed, ?array $static_manifest ): void {
+		if ( ! class_exists( 'Bouncer_AI_Experience' ) ) {
+			return;
+		}
+		if ( ! is_array( $static_manifest ) ) {
+			return;
+		}
+		$score                = (int) ( $static_manifest['risk_score'] ?? 0 );
+		$parsed['risk_level'] = Bouncer_AI_Experience::severity_band_for_score( $score );
+	}
+
 	private function update_manifest_with_ai( string $slug, array $result ): void {
 		global $wpdb;
-		$assessment = sprintf( '%s risk. %s %s', ucfirst( $result['risk_level'] ?? 'unknown' ), $result['risk_explanation'] ?? '', $result['plain_language_report'] ?? '' );
+
+		$m     = $this->manifest->get_manifest( $slug );
+		$score = is_array( $m ) ? (int) ( $m['risk_score'] ?? 0 ) : 0;
+		$label = class_exists( 'Bouncer_AI_Experience' )
+			? Bouncer_AI_Experience::severity_label_for_score( $score )
+			: __( 'Unknown', 'bouncer' );
+
+		$body = trim(
+			trim( (string) ( $result['plain_language_report'] ?? '' ) ) . ' '
+			. trim( (string) ( $result['risk_explanation'] ?? '' ) )
+		);
+
+		$assessment = sprintf(
+			/* translators: 1: Low/Medium/High (Quick Look band), 2: numeric score 0-100, 3: Deep Dive narrative */
+			__( '%1$s risk (Quick Look %2$d/100). %3$s', 'bouncer' ),
+			$label,
+			$score,
+			$body
+		);
+
 		$wpdb->query(
 			$wpdb->prepare(
 				"UPDATE {$wpdb->prefix}bouncer_manifests SET ai_assessment = %s, generated_by = 'ai' WHERE plugin_slug = %s ORDER BY generated_at DESC LIMIT 1",

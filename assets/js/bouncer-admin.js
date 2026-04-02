@@ -14,7 +14,7 @@
 	 * @returns {string} Localized progress string.
 	 */
 	function formatScanProgress(done, total) {
-		const tpl = S().scanAllProgress || 'Scanned %1$d of %2$d…';
+		const tpl = S().scanAllProgress || 'Checked %1$d of %2$d…';
 		return tpl.replace(/%1\$d/g, String(done)).replace(/%2\$d/g, String(total));
 	}
 
@@ -23,7 +23,7 @@
 	 * @returns {string} Button label for resuming a batch scan.
 	 */
 	function formatContinueLeft(n) {
-		const tpl = S().continueScanLeft || 'Continue scan (%d left)';
+		const tpl = S().continueScanLeft || 'Keep going (%d left)';
 		return tpl.replace('%d', String(n));
 	}
 
@@ -39,7 +39,7 @@
 		if (typeof d === 'string' && d) {
 			return d;
 		}
-		return S().error || 'Error';
+		return S().error || 'That scan didn’t finish';
 	}
 
 	/**
@@ -52,7 +52,7 @@
 		const plugin = $btn.data('plugin');
 		const origText = $btn.text();
 
-		$btn.text(S().scanning || '…').prop('disabled', true);
+		$btn.text(S().scanning || 'Looking…').prop('disabled', true);
 
 		$.ajax({
 			url: bouncerAdmin.ajaxUrl,
@@ -77,7 +77,7 @@
 				}
 			},
 			error() {
-				$btn.text(S().error || 'Error');
+				$btn.text(S().error || 'That scan didn’t finish');
 				setTimeout(function () {
 					$btn.text(origText).prop('disabled', false);
 				}, 2000);
@@ -95,7 +95,7 @@
 		const plugin = $btn.data('plugin');
 		const origText = $btn.text();
 
-		$btn.text(S().scanning || '…').prop('disabled', true);
+		$btn.text(S().scanning || 'Looking…').prop('disabled', true);
 
 		$.ajax({
 			url: bouncerAdmin.ajaxUrl,
@@ -116,7 +116,7 @@
 				}
 			},
 			error() {
-				$btn.text(S().error || 'Error').prop('disabled', false);
+				$btn.text(S().error || 'That scan didn’t finish').prop('disabled', false);
 			},
 		});
 	});
