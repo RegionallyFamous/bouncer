@@ -4,7 +4,7 @@ Tags: security, firewall, plugin-monitor, ai-security, behavior-monitoring
 Requires at least: 6.4
 Tested up to: 6.9
 Requires PHP: 8.1
-Stable tag: 1.0.0
+Stable tag: 1.0.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -119,6 +119,9 @@ In Monitor mode, Bouncer only observes and logs. It never blocks or modifies any
 * **Conflicts:** Another plugin’s `wp-content/db.php` is detected and left in place; query attribution stays off until that conflict is resolved.
 
 == Changelog ==
+
+= 1.0.1 =
+* Fix: stop redirect loop on **Tools → Bouncer** (`ERR_TOO_MANY_REDIRECTS`). The legacy submenu redirect no longer treats `page=bouncer` as an old slug to rewrite.
 
 = 1.0.0 =
 * Initial public release.

@@ -175,8 +175,9 @@ class Bouncer_Admin {
 		}
 
 		$page = sanitize_key( wp_unslash( $_GET['page'] ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		// Do not map `bouncer` here — that is the canonical Tools submenu slug; redirecting it to
+		// tools.php?page=bouncer would loop (same URL) and triggers ERR_TOO_MANY_REDIRECTS.
 		$map  = array(
-			'bouncer'           => 'dashboard',
 			'bouncer-events'    => 'events',
 			'bouncer-manifests' => 'manifests',
 			'bouncer-settings'  => 'settings',

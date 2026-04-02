@@ -2,7 +2,7 @@
 	"name": "regionallyfamous/bouncer",
 	"description": "WordPress plugin: per-plugin behavior monitoring",
 	"type": "wordpress-plugin",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"license": "GPL-2.0-or-later",
 	"require": {
 		"php": ">=8.1"
