@@ -8,13 +8,13 @@ Stable tag: 1.0.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-A plugin behavior firewall for WordPress. Watches what your plugins actually do and uses AI to catch the ones that misbehave.
+A plugin behavior firewall for WordPress. Watches what your plugins actually do — database, HTTP, hooks, files — and optionally uses AI to explain risk in plain English.
 
 == Description ==
 
-Bouncer monitors what your WordPress plugins actually do — not just what they say they'll do.
+Bouncer monitors what your WordPress plugins actually do — not just what they claim on the marketing page.
 
-Every plugin you install gets full access to your database, your filesystem, and your network. A contact form plugin can read your user passwords. A carousel plugin can phone home to a server you've never heard of.
+Every activated plugin can reach your database, filesystem, and outbound network. A contact form plugin can read user tables; a carousel plugin can call servers you have never approved.
 
 Bouncer watches four channels:
 
@@ -30,11 +30,11 @@ Bouncer watches four channels:
 
 = How It Works =
 
-1. **Install Bouncer** — it sets up monitoring automatically.
-2. **Plugin Manifests** — Bouncer generates a capability manifest for each plugin via static analysis, documenting every database table, outbound domain, hook, and dangerous API call.
-3. **Runtime Monitoring** — On every request, Bouncer watches plugin behavior against these manifests.
-4. **Alerts** — Violations trigger notifications based on severity (info, warning, critical, emergency).
-5. **Enforcement** — In Enforce mode, Bouncer actively blocks manifest violations and can emergency-deactivate compromised plugins.
+1. **Activate Bouncer** — It installs its monitoring pieces (must-use loader, optional `db.php` drop-in for query attribution when no conflict exists).
+2. **Manifests** — Static analysis builds a per-plugin capability profile: tables touched, outbound domains, sensitive hooks, and notable API use.
+3. **Runtime checks** — Each request is compared to those profiles (subject to your sampling rate and enabled channels).
+4. **Alerts** — Events are stored and can trigger email or signed webhooks by severity (info through emergency).
+5. **Enforcement** — In Enforce mode, Bouncer can block operations that violate the manifest and can deactivate plugins when file integrity rules demand it.
 
 = AI Scanning =
 
@@ -62,17 +62,23 @@ Bouncer never sends your source code off-site. It sends structural fingerprints 
 
 == Installation ==
 
-1. Upload the `bouncer` folder to `/wp-content/plugins/`.
-2. Activate the plugin through the 'Plugins' menu in WordPress.
-3. Bouncer automatically installs its monitoring components (mu-plugin loader and database monitor).
-4. Open **Tools → Bouncer**, then use the **Settings** tab to configure AI scanning and notification preferences.
-5. Use the **Dashboard** tab (same screen) to see your security status, event log, and manifests.
+1. Upload the `bouncer` folder to `/wp-content/plugins/` (the zip from GitHub or WordPress.org should unpack to a single top-level `bouncer` directory).
+2. Activate the plugin through the **Plugins** screen in WordPress.
+3. Ensure `wp-content/` and `wp-content/mu-plugins/` are writable so Bouncer can install its loader and, when safe, the `db.php` drop-in.
+4. Open **Tools → Bouncer**. Use **Settings** for channels, sampling, notifications, and optional Deep Dive (Anthropic). Use **Dashboard**, **Events**, and **Manifests** for status and history.
 
 = Requirements =
 
 * WordPress 7.0 or later
 * PHP 8.1 or later
 * For AI scanning: An Anthropic API key in **Settings → Connectors** (or `ANTHROPIC_API_KEY` via environment/constant), from https://console.anthropic.com/, and acceptance of Anthropic’s terms (see “Third-party services” above).
+
+== Screenshots ==
+
+1. **Tools → Bouncer — Dashboard** — Site-wide status and recent activity at a glance.
+2. **Events** — Filterable log of behavioral events by severity and channel.
+3. **Manifests** — Per-plugin capability profiles and scan actions.
+4. **Settings** — Monitor vs Enforce, monitoring toggles, notifications, and Connectors-based AI options.
 
 == Frequently Asked Questions ==
 
@@ -108,6 +114,11 @@ In Monitor mode, Bouncer only observes and logs. It never blocks or modifies any
 * **Database:** The MySQL user must be allowed to create tables. If creation fails, check the log and your host’s database permissions.
 * **Filesystem:** Bouncer writes a small loader under `wp-content/mu-plugins/` and may copy `db.php` into `wp-content/`. Those directories must be writable by the web server, or installation continues with flags you can see in the dashboard.
 * **Conflicts:** Another plugin’s `wp-content/db.php` is detected and left in place; query attribution stays off until that conflict is resolved.
+
+== Upgrade Notice ==
+
+= 1.0.7 =
+WordPress 7.0 **betas and release candidates** now correctly satisfy the minimum version check (same behavior as core’s compatibility helpers).
 
 == Changelog ==
 

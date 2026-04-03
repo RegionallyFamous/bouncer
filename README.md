@@ -9,6 +9,39 @@ You probably don't think twice when you install a WordPress plugin, and you shou
 
 A simple contact form plugin has the same level of access as WordPress itself. That's not a worst-case scenario; it's how WordPress is designed, for every plugin, every time. Until now, nothing was watching what they do with that access.
 
+## Contents
+
+- [Requirements and installation](#requirements-and-installation)
+- [How Bouncer fits in](#your-security-plugins-look-for-known-problems)
+- [What it monitors](#bouncer-watches-what-your-plugins-actually-do)
+- [Optional AI analysis](#ai-that-explains-what-your-plugins-do-in-plain-english)
+- [Monitor vs enforce](#start-by-watching-act-when-youre-ready)
+- [Privacy and third parties](#privacy-and-third-party-services)
+- [Development](#development)
+- [License and credits](#free-open-source-no-subscription-required)
+
+## Requirements and installation
+
+| Requirement | Version |
+|-------------|---------|
+| WordPress | **7.0+** (uses the Connectors API for optional AI keys) |
+| PHP | **8.1+** |
+
+**Install**
+
+1. Copy the plugin folder to `wp-content/plugins/bouncer/` (or upload the release zip so the folder name is `bouncer`).
+2. Activate **Bouncer** under **Plugins**.
+3. Open **Tools → Bouncer**. On first run, Bouncer installs a small must-use loader under `wp-content/mu-plugins/` and, when possible, a `wp-content/db.php` drop-in for query attribution. If another plugin already owns `db.php`, Bouncer leaves it in place and database query attribution stays off until that conflict is resolved (see the FAQ in [readme.txt](readme.txt)).
+
+**Configure**
+
+- **Dashboard** — status, recent events, manifests.
+- **Settings** — monitoring channels, sampling, notifications, optional **Deep Dive** (Anthropic) analysis, Monitor vs Enforce.
+
+Site administrators get the `manage_bouncer` capability (mapped from `manage_options` so existing admins keep access).
+
+For REST endpoints, WP-CLI, local development, and contributor workflows, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
 ## Your security plugins look for known problems
 
 Wordfence, Sucuri, Patchstack, and similar tools are good at what they do: they match plugins and files against **known** threats (disclosed vulnerabilities, known malware, and the like).
@@ -50,6 +83,8 @@ It does **not** ship your source code off-site. It sends a **structural summary*
 
 Think of it as a home inspection report: you don't need to be a plumber to understand what matters.
 
+Keys are configured through **Settings → Connectors** (WordPress 7.0), or the same `ANTHROPIC_API_KEY` environment variable / PHP constant pattern WordPress uses elsewhere. See [Privacy and third-party services](#privacy-and-third-party-services) below.
+
 ## Cloudflare thinks WordPress is the problem. We disagree.
 
 In **April 2026**, Cloudflare launched **EmDash**, a new platform framed as the answer to WordPress plugin security: if WordPress can't be fixed, start over.
@@ -76,11 +111,27 @@ On the same site you get **three** complementary angles, not one tool trying to 
 
 **Enforce Mode**: block suspicious activity and shut down compromised plugins automatically when you're ready and on your thresholds.
 
+## Privacy and third-party services
+
+**Optional AI (Anthropic Claude)** — Only when you enable AI scanning and provide a key. Bouncer sends **structural fingerprints** to Anthropic’s API, not raw plugin source. Enabling that feature means you direct Bouncer to contact Anthropic on your behalf.
+
+- [Anthropic Commercial Terms](https://www.anthropic.com/legal/commercial-terms)
+- [Anthropic Privacy Policy](https://www.anthropic.com/legal/privacy)
+
+Core behavioral monitoring does not require a Bouncer-hosted cloud or a paid subscription to us.
+
+## Development
+
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) — local environment (`wp-env`), PHP/JS linting, CI, architecture sketch, REST and WP-CLI reference, useful filters.
+- [RELEASING.txt](RELEASING.txt) — version bumps, distributable zip, WordPress.org checklist.
+
+Pull requests welcome; CI runs Composer lint (syntax, PHPCS, PHP compatibility) and ESLint on admin JavaScript.
+
 ## Free. Open source. No subscription required.
 
 Built by **[Regionally Famous](https://regionallyfamous.com)**, a WordPress studio that ships and maintains real client sites. We needed behavioral visibility that didn't exist, so we built Bouncer.
 
-Core protection needs **no** AI, **no** Bouncer-hosted cloud, and **no** monthly fee to us. AI is optional and **bring-your-own-key**; we don't monetize your analysis. The plugin is **free** and **open source**.
+Core protection needs **no** AI, **no** Bouncer-hosted cloud, and **no** monthly fee to us. AI is optional and **bring-your-own-key**; we don't monetize your analysis. The plugin is **free** and **open source** (GPL-2.0-or-later).
 
 ## The way we think about plugin security is changing
 

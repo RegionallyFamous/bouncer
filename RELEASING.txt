@@ -1,6 +1,8 @@
 Bouncer — release checklist
 ============================
 
+Contributor setup (local WordPress, lint, REST/WP-CLI reference): see docs/DEVELOPMENT.md.
+
 Plugin Check (PCP) and PHPCS
 ----------------------------
 Before each WordPress.org submission or update, run the **Plugin Check** plugin (PCP) in wp-admin against Bouncer. PCP runs automated security scans on submissions as of October 2025.
@@ -58,6 +60,7 @@ Option B — zip from the parent of the plugin folder (recommended):
     -x "bouncer/package.json" \
     -x "bouncer/package-lock.json" \
     -x "bouncer/*.md" \
+    -x "bouncer/docs/*" \
     -x "bouncer/phpcs.xml.dist" \
     -x "bouncer/RELEASING.txt" \
     -x "bouncer/.DS_Store" \
